@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head></head>
+<body>
+<h1>Test</h1>
+<script>
+    setTimeout(() => {
+//      console.log('msg:qunitDone', {foo: 1}), 550
+
+      console.debug({
+        event: 'foo',
+        data: JSON.stringify({bar:1})
+      });
+
+      console.debug({
+        event: 'unhandled',
+        data: JSON.stringify({shoo:1})
+      });
+
+      console.debug({
+        event: 'done',
+        data: JSON.stringify({foo: 1})
+      });
+    }, 150);
+
+//    throw new Error('fooo');
+</script>
+</body>
+</html>
+

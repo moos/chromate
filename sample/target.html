@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+    <script src="404.html"></script>
+</head>
+<body>
+<h1>Test</h1>
+<script>
+    console.log('foo was here', window.screen.width, window.screen.height);
+    console.log('UA =', navigator.userAgent);
+
+    setTimeout(() => {
+      console.debug({
+        event: 'fooo',
+        data: JSON.stringify({bar:1})
+      });
+
+      console.debug({
+        event: 'unhandled',
+        data: JSON.stringify({shoo:1})
+      });
+
+      console.debug({
+        event: 'done',
+        data: JSON.stringify({foo: 1})
+      });
+    }, 850);
+
+//    throw new Error('fooo');
+</script>
+</body>
+</html>
+
