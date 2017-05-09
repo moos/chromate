@@ -2,6 +2,10 @@
 var assert = require('assert');
 var Chrome = require('../index').Chrome;
 
+var execPath = Chrome.getExecPath({canary: true});
+
+
+Chrome.settings.execPath = execPath;
 
 describe('chrome-proc', function () {
 
@@ -15,17 +19,17 @@ describe('chrome-proc', function () {
 
   it('should start a process (non default port)', function (done) {
     var expected = [
-      Chrome.settings.execPath,
+      execPath,
       '--remote-debugging-port=9224',
       '--headless',
       '--disable-gpu'
-      ];
+      ].concat(Chrome.flags);
 
     Chrome.start({
       port: 9224
     }).then(chrome => {
       assert.equal(typeof chrome.pid, 'number');
-      assert.equal(chrome.spawnfile, Chrome.settings.execPath);
+      assert.equal(chrome.spawnfile, execPath);
       assert.deepEqual(chrome.spawnargs, expected);
       done();
     });

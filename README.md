@@ -93,6 +93,7 @@ new Tab(targetUrl)
     * [.killall()](#Chrome.killall) ⇒ <code>Promise.&lt;Number&gt;</code>
     * [.list([all])](#Chrome.list) ⇒ <code>Promise.&lt;Array&gt;</code>
     * [.version([options])](#Chrome.version) ⇒ <code>Promise.&lt;VersionInfo&gt;</code>
+    * [.getExecPath([options])](#Chrome.getExecPath) ⇒ <code>String</code>
 
 <a name="Chrome.settings"></a>
 ### Chrome.settings
@@ -108,6 +109,7 @@ Default settings. May be overridden by passing options.
 | disableGpu | <code>boolean</code> | <code>true</code> | passed --disable-gpu to Chrome |
 | execPath | <code>string</code> |  | override Chrome exec path, or set env variable CHROME_BIN |
 | chromeFlags | <code>Array.&lt;string&gt;</code> |  | array of flags to pass to Chrome, e.g. ['--foo'] |
+| canary | <code>boolean</code> | false | use Chrome Canary (must be installed on your system) |
 | retry | <code>number</code> | <code>3</code> | no. of times to retry to see if Chrome is ready |
 | retryInterval | <code>number</code> | <code>100</code> | msecs between retries (incl. first attempt) |
 | verbose | <code>boolean</code> | <code>false</code> | outputs additional logs |
@@ -152,11 +154,14 @@ include Chrome's sub-processes.
 
 **Returns**: <code>Promise.&lt;Array&gt;</code> - list of processes  
 
-
 <a name="Chrome.version"></a>
 ### Chrome.version([options]) ⇒ <code>Promise.&lt;VersionInfo&gt;</code>
 Get Chrome version info.  Provide  `options.port` of Chrome process.
 
+
+<a name="Chrome.getExecPath"></a>
+### Chrome.getExecPath([options]) ⇒ <code>String</code>
+Get available Chrome path, checking for existence.  Specify `options.canary` to prefer Chrome Canary.  Otherwise first checks regular Chrome.
 
 
 
@@ -278,17 +283,17 @@ Usage:
 ```shell
 $ chromate
 Usage: chromate start [<chrome flags>] | list | kill <id> ... | killall | version | open <url> | 
-    list-tabs | close <tabId> | close-tabs  [--verbose]
+    list-tabs | close <tabId> | close-tabs  [--canary | --verbose]
 ```
 
 Chrome process control:
 ```shell
 $ chromate start --window-size=800x600
-87335: /Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary --remote-debugging-port=9222 --headless --disable-gpu --window-size=800x600
+87335: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --remote-debugging-port=9222 --headless --disable-gpu --window-size=800x600
 
 $ chromate list
 [ { pid: '87335',
-    command: '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+    command: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     arguments:
      [ '--remote-debugging-port=9222',
        '--headless',
@@ -331,7 +336,8 @@ $ chromate close-tabs
 ```
 
 ## Issues
-Please use at least version >= 59 of Chrome  (currently that means Chrome Beta).
+- Please use at least version >= 59 of Chrome (currently that means Chrome Beta).
+- Canary isn't supported on Linux platform.
 
 
 ## Thanks and references

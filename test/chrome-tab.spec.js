@@ -181,7 +181,9 @@ describe('chrome-tab - events', function () {
       })
       .once('Network.requestWillBeSent', param => {
         ++calls;
-        assert.equal(param.request.url, targetUrl);
+        var expectedUrl = targetUrl.replace(/\\/g, '/');
+        if (process.platform === 'win32') expectedUrl = expectedUrl.replace('/C:', '//C:');
+        assert.equal(param.request.url, expectedUrl);
       })
       .open()
       .then(tab => {

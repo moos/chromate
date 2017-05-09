@@ -23,9 +23,16 @@
  * @prop win32 {string} path for win32 platform
  */
 var execPaths = {
-  darwin: '/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary',
+  darwin: '/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome',
   linux: '/opt/google/chrome-beta/chrome',  // TODO remove beta once 59 is out of beta
   win32: 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome'
+};
+
+
+var execPaths_canary = {
+  darwin: '/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary',
+  linux: 'Chrome Canary is currently not available on the Linux platform. :(',
+  win32: process.env.LOCALAPPDATA + '\\Google\\Chrome SxS\\Application\\chrome'
 };
 
 
@@ -35,9 +42,14 @@ var net = require('net');
 var CDP = require('chrome-remote-interface');
 var KILL_SIG = 'SIGTERM';
 
+var fs = require('fs');
 
-function getExecPath() {
-  return process.env.CHROME_BIN || execPaths[platform];
+
+function getExecPath(canary) {
+  var path = process.env.CHROME_BIN || (canary ? execPaths_canary[platform] : execPaths[platform]);
+  if (!path) throw new Error('No Chrome path given for platform ' + platform);
+  if (!fs.existsSync(path)) return '';
+  return path;
 }
 
 function getPort() {
@@ -94,6 +106,7 @@ var Chrome = module.exports = {
    * @prop disableGpu=true {boolean} passed --disable-gpu to Chrome
    * @prop execPath {string} override Chrome exec path, or set env variable CHROME_BIN
    * @prop chromeFlags {string[]} array of additional flags to pass to Chrome, e.g. ['--foo']
+   * @prop canary=false {boolean} use Chrome Canary (must be installed on your system)
    * @prop retry=3 {number} no. of times to retry to see if Chrome is ready
    * @prop retryInterval=100 {number} msecs between retries (incl. first attempt)
    * @prop verbose=false {boolean} outputs additional logs
@@ -107,6 +120,7 @@ var Chrome = module.exports = {
     disableGpu   : true,
     execPath     : getExecPath(),
     chromeFlags  : [],
+    canary       : false,
     retry        : 3,
     retryInterval: 100,
     verbose      : false
@@ -157,6 +171,8 @@ var Chrome = module.exports = {
     if (options.debug) args.push(`--remote-debugging-port=${options.port}`);
     if (options.headless) args.push('--headless');
     if (options.disableGpu) args.push('--disable-gpu');
+
+    if (options.canary) options.execPath = getExecPath(true);
 
     if (options.chromeFlags) {
       args = args.concat(options.chromeFlags, Chrome.flags);
@@ -295,5 +311,21 @@ var Chrome = module.exports = {
       options.port = Chrome.settings.port;
     }
     return CDP.Version(options);
+  },
+
+  /**
+   * Get available Chrome path, checking for existence.
+   *
+   * @param [options] {object} specify options.canary to prefer Chrome Canary.  Otherwise first checks regular Chrome.
+   * @returns {string}
+   * @memberOf Chrome
+   */
+  getExecPath: function (options) {
+    var canary = options && options.canary;
+    return (!canary && getExecPath()) ||
+      getExecPath(true) ||
+      (canary && getExecPath()) ||
+      'No Chrome installation found';
   }
+
 };

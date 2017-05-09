@@ -15,6 +15,7 @@ var me = require('path').basename(args[1]);
 var cmd = args[2];
 var url = args[3];
 var verbose = args.some(x => /--verbose\b/.test(x));
+var canary = args.some(x => /--canary\b/.test(x));
 
 
 function done(res) {
@@ -24,7 +25,7 @@ function done(res) {
 
 function usage() {
   console.log('Usage:', me,
-    'start [<chrome flags>] | list | kill <id> ... | killall | version | open <url> | list-tabs | close <tabId> | close-tabs  [--verbose]');
+    'start [<chrome flags>] | list | kill <id> ... | killall | version | open <url> | list-tabs | close <tabId> | close-tabs  [--canary | --verbose]');
   process.exit();
 }
 
@@ -36,7 +37,8 @@ switch (cmd) {
     Chrome.start({
       debug: !/--remote-debugging-port/.test(cargs.join()),
       verbose: verbose,
-      chromeFlags: cargs
+      chromeFlags: cargs,
+      canary: canary
     }).then(chrome => {
       console.log(`${chrome.pid}: ${chrome.spawnargs.join(' ')}`);
       done();
