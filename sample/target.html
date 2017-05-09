@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
 <head>
+    <title>Target page</title>
     <script src="404.html"></script>
 </head>
 <body>
@@ -9,9 +10,18 @@
     console.log('foo was here', window.screen.width, window.screen.height);
     console.log('UA =', navigator.userAgent);
 
+    window.__coverage__ = {
+      'js/main.js': {
+        lines     : 10,
+        statements: 8,
+        branches  : 6,
+        functions : 4
+      }
+    };
+
     setTimeout(() => {
       console.debug({
-        event: 'fooo',
+        event: 'foo',
         data: JSON.stringify({bar:1})
       });
 

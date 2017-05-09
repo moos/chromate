@@ -1,24 +1,25 @@
 {
   "name": "chromate",
   "version": "0.1.0",
-  "description": "a mate for your headless Chrome, mate",
+  "description": "A mate for your Headless Chrome, mate.",
   "main": "index.js",
   "bin": "bin/cli.js",
   "scripts": {
     "test": "mocha test",
     "sample": "node sample/main"
   },
-  "keywords": ["chrome", "headless"],
+  "keywords": [
+    "chrome",
+    "headless"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/moos/chromate.git"
   },
   "author": "Moos",
   "license": "MIT",
-  "devDependencies": {
-    "ps-node": "^0.1.6"
-  },
   "dependencies": {
+    "ps-node": "^0.1.6",
     "chrome-remote-interface": "^0.21.0"
   }
 }

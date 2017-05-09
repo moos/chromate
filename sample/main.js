@@ -16,48 +16,41 @@ Chrome.start()
 function run(chrome) {
   console.log(`started pid ${chrome.pid} on port ${Chrome.settings.port}`);
 
-  // Chrome.list().then(res => console.log(`Got ${res.length} processes`));
+  Chrome.list().then(res => console.log(`Got ${res.length} processes`));
 
-  // new Tab(url, options)
-  //   .on('init', foo)
-  //   .open()
-  //   .then(client => {});
-  // var options = {};
+  var options = {
+    verbose: true,
+    failonerror: false
+  };
 
-  // Tab.open(targetUrl, options).then(client => {
-  //   client.on('event', function (message) {
-  //     console.log(111,message);
-  //   });
-  //
-  // });
+  new Tab(targetUrl, options)
+    .on('ready', tab => {
+      console.log('ready', tab.client.target.id);
 
+      // add script to target
+      tab.client.Page.addScriptToEvaluateOnLoad({
+        scriptSource: 'console.log("in target", location.href)'
+      });
 
-  Tab.open(targetUrl, {
-    //verbose: true,
-    failonerror: false,
-    events     : {
-      ready: function (client, options) {
-        console.log('ready fired', client.target.id);
-
-        client.on('event', function (message) {
-          console.log(111,message);
-        });
-      },
-      load: function (res, options) {
-        console.log('load fired', res);
-      },
-      done: function (res, options) {
-        console.log('my done', res);
-
-        // options.promise.resolve(res);
-
-        // return false to allow default handler
-        return false;
-      }
-    }
-  }).then((res) => {
-    console.log('main done', res);
-    Chrome.kill(chrome);
-    process.exit(0)
-  });
+      // any event may prematurely terminate the Promise chain
+      // tab.promise.resolve(4444);
+    })
+    .on('Network.requestWillBeSent', param => console.log('network request custom handler', param.request.method))
+    .once('Runtime.consoleAPICalled', param => console.log('Runtime.consoleAPICalled called', param))
+    .on('load', (param, tab) => console.log('load', param))
+    .on('foo', (param, tab) => console.log('foo', param))
+    .on('done', (param, tab) => console.log('done', param))
+    .on('disconnect', (param, tab) => console.log('disconnect', param)) // not firing!
+    .open()
+    .then(tab => {
+      return tab.client.Runtime.evaluate({expression: 'JSON.stringify(__coverage__)'})
+        .then(result => console.log('Got coverage', JSON.parse(result.result.value)))
+        .then(() => tab);
+    })
+    .then(tab => tab.close())
+    .then(() => {
+      console.log('Exiting chrome', chrome.pid);
+      Chrome.kill(chrome);
+      process.exit(0);
+    });
 }

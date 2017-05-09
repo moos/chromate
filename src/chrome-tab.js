@@ -1,6 +1,18 @@
+/*!
+ * handle chrome tabs
+ *
+ * @copyright 2017 Moos https://github.com/moos/chromate
+ * @licence MIT
+ */
 
 var CDP = require('chrome-remote-interface');
 var fs = require('fs');
+
+/**
+ * @external EventEmitter
+ * @see {@link https://nodejs.org/api/events.html#events_class_eventemitter}
+ */
+var EventEmitter = require('events').EventEmitter;
 
 const outputPath = 'screenshot.png';
 
@@ -19,37 +31,23 @@ function getClient(options) {
   });
 }
 
-/**
- * fire an event if a handler exists
- *
- * @param name
- * @param data
- * @param options
- * @returns {boolean} true if event was handled, false otherwise
- * @ignore
- */
-function fireEvent(name, data, options) {
-  if (name in options.events) {
-    return options.events[ name ](data, options);
-  }
-  return false;
+function closeTab(tabId, options) {
+  return CDP.Close({
+    id  : tabId,
+    port: options && options.port || Tab.settings.port
+  });
 }
 
 function newTab(client, targetUrl, options) {
-  var opts = Object.assign({}, Tab.settings, options || {});
+  var self = this;
+  var fireEvent = function () {
+    if (!self || !self.emit) return;
+    return self.emit.apply(self, arguments);
+  };
 
-  // this is so we can pass back options!
-  options = Object.assign(options || {}, opts);
-  options.client = client;
-
-  fireEvent('ready', client, options);
+  options = Object.assign({}, Tab.settings, options || {});
 
   return new Promise((resolve, reject) => {
-    // make promise available to event handlers
-    options.promise = {
-      resolve: resolve,
-      reject: reject
-    };
 
     client.Emulation.setVisibleSize({
       width : options.viewport.width,
@@ -73,7 +71,9 @@ function newTab(client, targetUrl, options) {
 
     client.Page.loadEventFired(param => {
       options.verbose && console.log('-> loadEventFired');
-      fireEvent('load', param, options);
+      fireEvent('load', param, self);
+
+      if (!options.waitForDone) resolve(self);
     });
 
     client.Log.entryAdded((entry) => {
@@ -102,25 +102,30 @@ function newTab(client, targetUrl, options) {
       var result = parsePreview(res.args[0].preview);
 
       // event handled?
-      if (fireEvent(result.event, result.data, options) !== false) return;
+      var handled = fireEvent(result.event, result.data, self);
 
-      // else
       switch (result.event) {
         case 'done':
           options.verbose && console.log('-> done', result.data)
+          self.result = result.data;
 
-          if (options.screenshot) screenCapture(client, options).then(() => resolve(result.data));
-          else resolve(result.data);
+          if (!options.waitForDone) break;
+
+          if (options.screenshot) screenCapture(client, options).then(() => resolve(self));
+          else resolve(self);
           break;
 
         default:
-          options.verbose && console.log('CONSOLE: (UNHANDLED MESSAGE)', result);
+          !handled && options.verbose && console.log('CONSOLE: (UNHANDLED MESSAGE)', result);
       }
     });
 
     if (options.verbose) client.Runtime.exceptionThrown(res => {
       console.log('EXCEPTION', res)
     });
+
+    // fire ready event -- allowing caller to override any of the above
+    fireEvent('ready', self);
 
     Promise.all([
       client.Network.enable(),
@@ -135,9 +140,7 @@ function newTab(client, targetUrl, options) {
     })
     .then(frameId => {
       options.frameId = frameId;
-      if (!options.waitForDone) {
-        resolve(client);
-      }
+      return self;
     })
     .catch((err) => {
       // console.error(`ERROR: ${err.message}`, err);
@@ -180,11 +183,88 @@ function screenCapture(client, options) {
   );
 }
 
-/**
- * @namespace Tab
- */
-var Tab = module.exports = {
 
+class Tab extends EventEmitter {
+  /**
+   * @param targetUrl="about:blank" {string} url to load in tab
+   * @param [options] {object} see settings
+   * @constructor
+   * @extends external:EventEmitter
+   */
+  constructor(targetUrl, options) {
+    super(); //must call super for "this" to be defined.
+
+    this.options = Object.assign({}, Tab.settings, options || {});
+    this.targetUrl = targetUrl || 'about:blank';
+  }
+
+  /**
+   * Open a new tab at url.
+   *
+   * @emits 'ready' - tab client is ready.  Handlers get (this).
+   * @emits 'load' - page loaded.  Handlers get (data, this).
+   * @emits 'done' and other custom events as fired by the target page. Handlers get (data, this).
+   *
+   * See also: events fired by <a href="https://github.com/cyrus-and/chrome-remote-interface#class-cdp">CDP</a>.
+   *
+   * Target may fire any number of custom events via
+   * <tt>console.debug({event, data})</tt>.
+   *
+   * @returns {Promise.<this>} Resolved as soon as the page loads.  If options.waitForDone is true,
+   *   waits for 'done' event from the target page before resolving.
+   *   The data from the 'done' event is available as this.result.
+   *
+   * Note that this.client is the <a href="https://github.com/cyrus-and/chrome-remote-interface#cdpnewoptions-callback">CDP client</a> object.
+   *
+   * @memberOf Tab
+   */
+  open() {
+    var self = this;
+    var options = this.options;
+    var close = function (result) {
+      if (!self.client || result === self) return result;
+      return self.close().then(() => result);
+    };
+
+    var pipeClientEvents = function(client) {
+      client.on('event', function (message) {
+        if (message.method) {
+          self.emit('event', message);
+          self.emit(message.method, message.params);
+        }
+      });
+      return Promise.resolve(client);
+    };
+
+    return getClient(options)
+      .then(pipeClientEvents)
+      .then(client => {
+        this.client = client;
+        return newTab.bind(this)(this.client, this.targetUrl, options);
+      })
+      .catch(err => {
+        options.verbose && console.log('-> Exception', err);
+        close('');
+        throw err;
+      });
+  }
+
+  /**
+   * Close a tab opened by open()
+   *
+   * @returns {Promise}
+   * @memberOf Tab
+   */
+  close() {
+    var target = this.client && this.client.target || {};
+    if (this.options.verbose) {
+      console.log('-> Closing', target.id);
+    }
+    return closeTab(target.id, this.options);
+  }
+}
+
+Object.assign(Tab, {
   /**
    * Default settings. May be overridden by passing in options.
    *
@@ -193,11 +273,8 @@ var Tab = module.exports = {
    * @prop verbose=false {boolean} log info and console.logs
    * @prop screenshot=false {boolean} take a screenshot (WIP!)
    * @prop viewport=width:680,height:800 {object} window width & height
-   * @prop waitForDone=true {boolean} set to false to have tab not wait for a 'done' event
-   *   from the target and close immediately
-   * @prop events {object} event handlers of type {event: handler}.  Standard events include
-   *   'init' & 'load'.  Target may fire any number of custom events via
-   *   console.debug({event, data}).  A 'done' event will close the tab.
+   * @prop waitForDone=false {boolean} set to true to have tab wait for a 'done' event
+   *   from the target.  The result is returned in tab.result.
    *
    * @memberOf Tab
    */
@@ -210,105 +287,81 @@ var Tab = module.exports = {
       width : 680,
       height: 800
     },
-    waitForDone: true,
-    events     : {}
+    waitForDone: false
   },
 
   /**
-   * get a CDP client
+   * Get a CDP client
    *
    * @returns {Promise.<Client>}
+   * @ignore
    */
   getClient: getClient,
 
   /**
-   * open a new tab on given client
+   * Open a new tab on given client
    *
    * @param client
    * @param url
    * @param options
-   * @returns {Promise} with
+   * @returns {Promise}
+   * @ignore
    */
   newTab: newTab,
 
   /**
-   * open a new tab at url.
+   * List all open tabs
    *
-   * Target url may close the tab by issuing a console.debug({event:'done', data:{}}) event.
-   *
-   * Caller may close the tab by Tab.close(options.client.target.id)
-   *
-   * @param url {string} url to load in tab
-   * @param [options] {object} see settings
-   * @returns {Promise.<result|client>} if options.waitForDone is true, waits for 'done' event
-   *   from the target page and returns the result.  Otherwise, returns the
-   *   <a href="https://github.com/cyrus-and/chrome-remote-interface#cdpnewoptions-callback">CDP client</a> object.
-   *
-   * @emits 'init' (tab initiated), 'load' (page loaded) and 'done' and other custom events
-   * as fired by the target page.
-   * @memberOf Tab
-   */
-  open: function (url, options) {
-    var client;
-    var close = function(result) {
-      if (!client) return result;
-      options.verbose && console.log('-> Closing', client.target.id, result.target || result);
-      client.close();
-      return CDP.Close({id: client.target.id}).then(() => result);
-    };
-
-    return getClient(options)
-      .then(cl => {
-        client = cl;
-        return newTab(client, url, options);
-      })
-      .then(close)
-      .catch(err => {
-        options.verbose && console.log('-> Exception', err);
-        close('');
-        throw err;
-      });
-  },
-
-  /**
-   * list all open tabs
-   *
-   * @param [options] {object} {port} no.
-   * @returns {Promise.<Array>} with tabs array
+   * @param [options] {object} options.port of Chrome process
+   * @returns {Promise.<Array>} of tab objects
    * @memberOf Tab
    */
   list: function (options) {
-    options = options || {port: Tab.settings.port};
+    options = options || {};
+    if (!options.port) {
+      options.port = Tab.settings.port;
+    }
     return CDP.List(options);
   },
 
   /**
-   * close a tab
+   * Open a tab at target url.  Short hand for new Tab(url, opt).open().
    *
-   * @param tabId {string} id of tab to close
-   * @param [options] {object} {port} no.
-   * @returns {Promise}
+   * @param targetUrl="about:blank" {string} url to load in tab
+   * @param [options] {object} see settings
+   * @returns {Promise.<Tab>}
    * @memberOf Tab
    */
-  close: function (tabId, options) {
-    return CDP.Close({
-      id: tabId,
-      port: options && options.port || Tab.settings.port
-    });
+  open: function (targetUrl, options) {
+    return new Tab(targetUrl, options).open()
   },
 
   /**
-   * close all tabs
+   * Close a tab with given tab Id.
    *
+   * @param tabId {string} id of tab to close
+   * @param [options] {object} options.port of Chrome process
+   * @returns {Promise}
+   * @memberOf Tab
+   * @function
+   */
+  close: closeTab,
+
+  /**
+   * Close all tabs
+   *
+   * @param [options] {object} {port} no.
    * @returns {Promise.<Number>} no. of tabs closed
    * @memberOf Tab
    */
-  closeAll: function () {
+  closeAll: function (options) {
     return Tab.list().then(tabs => {
-      return tabs.map(tab => Tab.close(tab.id));
+      return tabs.map(tab => closeTab(tab.id, options));
     })
       .then(promises => Promise.all(promises))
       .then(x => x.length);
   }
+});
 
-};
+
+module.exports = Tab;

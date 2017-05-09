@@ -1,20 +1,26 @@
-/**
+/*!
  * handle chrome process
  *
- * CLI Usage:
- *    node chrome-proc.js  start [<chrome flags>]| list | kill <id> ... | killall
- *
- * or
- *
- *    CHROME_BIN=<path to chrome> node chrome-proc.js  start ...
- *
- * @copyright moos
- * MIT License
+ * @copyright 2017 Moos https://github.com/moos/chromate
+ * @licence MIT
+ */
+
+/**
+ * @constant {string} CHROME_BIN (Environment variable) location
+ * of Chrome executable
+ */
+
+/**
+ * @constant {string} CHROME_PORT (Environment variable) port to use
  */
 
 /**
  * Path to Chrome executable.  Update for your system.
- * @ignore
+ *
+ * @typedef {object}
+ * @prop darwin {string} path for darwin platform
+ * @prop linux {string} path for linux platform
+ * @prop win32 {string} path for win32 platform
  */
 var execPaths = {
   darwin: '/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary',
@@ -22,15 +28,6 @@ var execPaths = {
   win32: 'C:\Program Files (x86)\Google\Chrome\Application\chrome'
 };
 
-/**
- * Search query term for list().
- * @ignore
- */
-var psQuery = {
-  darwin: 'Canary.app',
-  linux: 'chrome',
-  win32: 'chrome'
-};
 
 var platform = process.platform;
 var spawn = require('child_process').spawn;
@@ -50,21 +47,30 @@ function delay(msecs) {
   return new Promise((resolve) => setTimeout(resolve, msecs));
 }
 
+/**
+ * Search query term for list().
+ * @ignore
+ */
+function getPsQuery() {
+  var parts = getExecPath().split(/\\b/);
+  return parts[parts.length - 1] || 'chrome';
+}
+
 function checkReady(options) {
-  var client,
+  var proc,
     close = function () {
-      client.end();
-      client.unref();
-      client.destroy();
+      proc.end();
+      proc.unref();
+      proc.destroy();
     };
 
   return new Promise((resolve, reject) => {
-    client = net.createConnection(options && options.port || Chrome.settings.port);
-    client.once('error', err => {
+    proc = net.createConnection(options && options.port || Chrome.settings.port);
+    proc.once('error', err => {
       close();
       reject(err);
     });
-    client.once('connect', () => {
+    proc.once('connect', () => {
       close();
       resolve();
     });
@@ -74,7 +80,15 @@ function checkReady(options) {
 // https://cs.chromium.org/chromium/src/headless/app/headless_shell_switches.cc
 
 /**
- * @namespace Chrome
+ * @external ChildProcess
+ * @see {@link https://nodejs.org/api/child_process.html#child_process_class_childprocess}
+ */
+
+
+/**
+ * This is a static class - no ctor!
+ *
+ * @class Chrome
  */
 var Chrome = module.exports = {
 
@@ -110,7 +124,7 @@ var Chrome = module.exports = {
    * Start a Chrome process and wait until it's ready
    *
    * @param [options] {object} see settings
-   * @returns {Promise.<ChildProcess>}
+   * @returns {Promise.<external:ChildProcess>}
    * @memberOf Chrome
    */
   start: function (options) {
@@ -221,7 +235,7 @@ var Chrome = module.exports = {
       };
 
       ps.lookup({
-        command  : psQuery[platform],
+        command  : getPsQuery(),
         arguments: '--headless',
         // psargs: 'ux'
       }, function (err, result) {

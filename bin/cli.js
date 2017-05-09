@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 
+/*!
+ * chromate cli
+ *
+ * @copyright 2017 Moos https://github.com/moos/chromate
+ * @licence MIT
+ */
+
 var Chrome = require('../index').Chrome;
 var Tab = require('../index').Tab;
 
@@ -46,8 +53,7 @@ switch (cmd) {
     Tab.open(url, {
       failonerror: false,
       verbose: verbose
-      // waitForDone: true
-    }).then(client => done(client && client.target || 22222), done);
+    }).then(tab => done(tab.client.target), done);
     break;
 
   case 'list-tabs':
@@ -67,7 +73,3 @@ switch (cmd) {
       usage();
     }
 }
-
-
-
-
