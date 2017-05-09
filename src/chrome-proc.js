@@ -247,7 +247,7 @@ var Chrome = module.exports = {
         result = result.filter(res => {
           var ok = true;
           res.arguments.forEach(arg => {
-            if (arg === '--type=renderer') {
+            if (arg === '--type=renderer' || arg === '--type=zygote') {
               ok = false;
             }
           });

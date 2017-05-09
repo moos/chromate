@@ -1,4 +1,4 @@
-Auto_mate_ [Headless Chrome](https://www.chromestatus.com/feature/5678767817097216) -- start/stop 
+Automate [Headless Chrome](https://www.chromestatus.com/feature/5678767817097216) -- start/stop 
  Chrome instances, open & close tabs, and _communicate_ with the target page.
 
 ## Use
@@ -316,7 +316,7 @@ $ chromate close-tabs
 
 ## Change log
 
-- v0.1.0 Initial version (May 2017)
+- v0.1.x Initial version (May 2017)
 
 ## License
 MIT
