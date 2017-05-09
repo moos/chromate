@@ -1,6 +1,19 @@
 Automate [Headless Chrome](https://www.chromestatus.com/feature/5678767817097216) -- start/stop 
  Chrome instances, open & close tabs, and _communicate_ with the target page.
 
+
+## Install
+```shell
+npm install chromate
+npm run sample
+```
+Test
+```shell
+# npm i -g mocha  (if you don't already have it)
+npm test
+```
+
+
 ## Use
 ```js
 var Chrome = require('chromate').Chrome;
@@ -25,12 +38,13 @@ Handle events, including any [chrome-remote-interface](https://github.com/cyrus-
 In this case we instantiate a class (rather than calling `Tab.open` statically like above):
 ```js
 new Tab(targetUrl, options)
+ .on('ready', (tab) => console.log('tab is ready', tab.client.target.id))
  .on('load', () => console.log('page loaded'))
  .on('Network.requestWillBeSent', param => console.log('Getting resource', param.request.url))
  .once('Runtime.consoleAPICalled', param => console.log('Runtime.consoleAPICalled called', param))
  .open();
 ```
-The `ready` event is fired once the target client is ready (this overrides the CDP `ready` event).  The target may
+The `ready` event is fired once when the target client is ready (this overrides the CDP `ready` event).  The target may
 fire any number of custom events.
 
 ### Custom target events
@@ -64,13 +78,6 @@ new Tab(targetUrl)
 ```
 
 
-## Install
-```shell
-npm install chromate
-npm test
-npm run sample
-```
-
 
 ## API
 
@@ -88,6 +95,7 @@ npm run sample
 <a name="Chrome.settings"></a>
 ### Chrome.settings
 Default settings. May be overridden by passing options.
+
 **Properties**
 
 | Name | Type | Default | Description |
@@ -106,6 +114,7 @@ Default settings. May be overridden by passing options.
 ### Chrome.start([options]) ⇒ <code>Promise.&lt;ChildProcess&gt;</code>
 Start a Chrome process and wait until it's ready.  Pass `options` to override any `Chrome.settings`.
 
+**Returns**: <code>Promise.&lt;ChildProcess&gt;</code> - spawned process  
 
 <a name="Chrome.ready"></a>
 ### Chrome.ready([options]) ⇒ <code>Promise</code>
@@ -161,19 +170,19 @@ Constructor - `targetUrl` {<code>string</code>} is the url to load in tab.  Prov
 
 
 <a name="Tab+open"></a>
-### tab.open() ⇒ <code>Promise.&lt;this&gt;</code>
+### tab.open() ⇒ <code>Promise.&lt;Tab&gt;</code>
 Open a new tab at url.
 
-**Returns**: <code>Promise.&lt;this&gt;</code> - Resolved as soon as the page loads.  If `options.waitForDone` is true,
+**Returns**: <code>Promise.&lt;Tab&gt;</code> - Resolved as soon as the page loads.  If `options.waitForDone` is true,
   waits for 'done' event from the target page before resolving.
-  The data from the 'done' event is available as `this.result`.
+  The data from the 'done' event is available as `tab.result`.
 
-Note that `this.client` is the <a href="https://github.com/cyrus-and/chrome-remote-interface#cdpnewoptions-callback">CDP client</a> object.
+Note that `tab.client` is the <a href="https://github.com/cyrus-and/chrome-remote-interface#cdpnewoptions-callback">CDP client</a> object.
   
 **Emits**: 
-- <code>&#x27;ready&#x27;</code> - tab client is ready. Handlers get (this).
-- <code>&#x27;load&#x27;</code> - page loaded.  Handlers get (data, this).
-- <code>&#x27;done&#x27;</code> and other custom events as fired by the target page. Handlers get (data, this).
+- <code>&#x27;ready&#x27;</code> - tab client is ready. Handlers get (tab).
+- <code>&#x27;load&#x27;</code> - page loaded.  Handlers get (data, tab).
+- <code>&#x27;done&#x27;</code> and other custom events as fired by the target page. Handlers get (data, tab).
 
 See also events fired by [CDP](https://github.com/cyrus-and/chrome-remote-interface#class-cdp).
 
