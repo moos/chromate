@@ -86,11 +86,13 @@ new Tab(targetUrl)
 
 * [Chrome](#Chrome) : <code>object</code>
     * [.settings](#Chrome.settings)
+    * [.flags](#Chrome.flags) : <code>Array.&lt;String&gt;</code>
     * [.start([options])](#Chrome.start) ⇒ <code>Promise.&lt;ChildProcess&gt;</code>
     * [.ready([options])](#Chrome.ready) ⇒ <code>Promise</code>
     * [.kill(job)](#Chrome.kill)
     * [.killall()](#Chrome.killall) ⇒ <code>Promise.&lt;Number&gt;</code>
     * [.list([all])](#Chrome.list) ⇒ <code>Promise.&lt;Array&gt;</code>
+    * [.version([options])](#Chrome.version) ⇒ <code>Promise.&lt;VersionInfo&gt;</code>
 
 <a name="Chrome.settings"></a>
 ### Chrome.settings
@@ -109,6 +111,13 @@ Default settings. May be overridden by passing options.
 | retry | <code>number</code> | <code>3</code> | no. of times to retry to see if Chrome is ready |
 | retryInterval | <code>number</code> | <code>100</code> | msecs between retries (incl. first attempt) |
 | verbose | <code>boolean</code> | <code>false</code> | outputs additional logs |
+
+
+<a name="Chrome.flags"></a>
+### Chrome.flags : <code>Array.&lt;String&gt;</code>
+Default set of flags passed to Chrome.  See [src/chrome-proc.js](src/chrome-proc.js).
+
+
 
 <a name="Chrome.start"></a>
 ### Chrome.start([options]) ⇒ <code>Promise.&lt;ChildProcess&gt;</code>
@@ -142,6 +151,11 @@ List all (headless) Chrome processes (doesn't list Chrome's child processes).  I
 include Chrome's sub-processes.
 
 **Returns**: <code>Promise.&lt;Array&gt;</code> - list of processes  
+
+
+<a name="Chrome.version"></a>
+### Chrome.version([options]) ⇒ <code>Promise.&lt;VersionInfo&gt;</code>
+Get Chrome version info.  Provide  `options.port` of Chrome process.
 
 
 
@@ -263,7 +277,7 @@ Path to Chrome executable (in [src/chrome-proc.js](src/chrome-proc.js)).  Update
 Usage:
 ```shell
 $ chromate
-Usage: chromate start [<chrome flags>] | list | kill <id> ... | killall | open <url> | 
+Usage: chromate start [<chrome flags>] | list | kill <id> ... | killall | version | open <url> | 
     list-tabs | close <tabId> | close-tabs  [--verbose]
 ```
 
@@ -315,6 +329,9 @@ $ chromate list-tabs
 $ chromate close-tabs
 2
 ```
+
+## Issues
+Please use at least version >= 59 of Chrome  (currently that means Chrome Beta).
 
 
 ## Thanks and references

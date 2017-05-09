@@ -24,14 +24,15 @@
  */
 var execPaths = {
   darwin: '/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary',
-  linux: '/opt/google/chrome/chrome',
-  win32: 'C:\Program Files (x86)\Google\Chrome\Application\chrome'
+  linux: '/opt/google/chrome-beta/chrome',  // TODO remove beta once 59 is out of beta
+  win32: 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome'
 };
 
 
 var platform = process.platform;
 var spawn = require('child_process').spawn;
 var net = require('net');
+var CDP = require('chrome-remote-interface');
 var KILL_SIG = 'SIGTERM';
 
 
@@ -47,14 +48,6 @@ function delay(msecs) {
   return new Promise((resolve) => setTimeout(resolve, msecs));
 }
 
-/**
- * Search query term for list().
- * @ignore
- */
-function getPsQuery() {
-  var parts = getExecPath().split(/\\b/);
-  return parts[parts.length - 1] || 'chrome';
-}
 
 function checkReady(options) {
   var proc,
@@ -100,7 +93,7 @@ var Chrome = module.exports = {
    * @prop headless=true {boolean} start Chrome in headless mode (note: non-headless mode not tested!)
    * @prop disableGpu=true {boolean} passed --disable-gpu to Chrome
    * @prop execPath {string} override Chrome exec path, or set env variable CHROME_BIN
-   * @prop chromeFlags {string[]} array of flags to pass to Chrome, e.g. ['--foo']
+   * @prop chromeFlags {string[]} array of additional flags to pass to Chrome, e.g. ['--foo']
    * @prop retry=3 {number} no. of times to retry to see if Chrome is ready
    * @prop retryInterval=100 {number} msecs between retries (incl. first attempt)
    * @prop verbose=false {boolean} outputs additional logs
@@ -113,12 +106,42 @@ var Chrome = module.exports = {
     headless     : true,
     disableGpu   : true,
     execPath     : getExecPath(),
-    chromeFlags  : [],  // e.g. --foobar
-
+    chromeFlags  : [],
     retry        : 3,
     retryInterval: 100,
     verbose      : false
   },
+
+  /**
+   * Default set of flags passed to Chrome.
+   *
+   * Source: https://github.com/GoogleChrome/lighthouse/blob/master/lighthouse-cli/chrome-launcher.ts#L64
+   *
+   * @var flags {Array.<String>}
+   * @memberOf Chrome
+   */
+  flags: [
+    // Disable built-in Google Translate service
+    '--disable-translate',
+    // Disable all chrome extensions entirely
+    '--disable-extensions',
+    // Disable various background network services, including extension updating,
+    //   safe browsing service, upgrade detector, translate, UMA
+    '--disable-background-networking',
+    // Disable fetching safebrowsing lists, likely redundant due to disable-background-networking
+    '--safebrowsing-disable-auto-update',
+    // Disable syncing to a Google account
+    '--disable-sync',
+    // Disable reporting to UMA, but allows for collection
+    '--metrics-recording-only',
+    // Disable installation of default apps on first run
+    '--disable-default-apps',
+    // Skip first run wizards
+    '--no-first-run'
+
+    // Place Chrome profile in a custom location we'll rm -rf later
+    //`--user-data-dir=TBD`
+  ],
 
   /**
    * Start a Chrome process and wait until it's ready
@@ -136,7 +159,7 @@ var Chrome = module.exports = {
     if (options.disableGpu) args.push('--disable-gpu');
 
     if (options.chromeFlags) {
-      args = args.concat(options.chromeFlags);
+      args = args.concat(options.chromeFlags, Chrome.flags);
     }
 
     var proc = spawn(options.execPath, args, {
@@ -235,7 +258,7 @@ var Chrome = module.exports = {
       };
 
       ps.lookup({
-        command  : getPsQuery(),
+        command  : /chrome/i,
         arguments: '--headless',
         // psargs: 'ux'
       }, function (err, result) {
@@ -257,5 +280,20 @@ var Chrome = module.exports = {
         done(err, result);
       });
     });
+  },
+
+  /**
+   * Get Chrome version info
+   *
+   * @param [options] {object} options.port of Chrome process
+   * @returns {Promise.<VersionInfo>}
+   * @memberOf Chrome
+   */
+  version: function (options) {
+    options = options || {};
+    if (!options.port) {
+      options.port = Chrome.settings.port;
+    }
+    return CDP.Version(options);
   }
 };

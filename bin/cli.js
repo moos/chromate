@@ -24,7 +24,7 @@ function done(res) {
 
 function usage() {
   console.log('Usage:', me,
-    'start [<chrome flags>] | list | kill <id> ... | killall | open <url> | list-tabs | close <tabId> | close-tabs  [--verbose]');
+    'start [<chrome flags>] | list | kill <id> ... | killall | version | open <url> | list-tabs | close <tabId> | close-tabs  [--verbose]');
   process.exit();
 }
 
