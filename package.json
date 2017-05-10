@@ -1,6 +1,6 @@
 {
   "name": "chromate",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "A mate for your Headless Chrome, mate.",
   "main": "index.js",
   "bin": "bin/cli.js",

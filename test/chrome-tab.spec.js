@@ -89,6 +89,19 @@ describe('chrome-tab - basic', function () {
       });
     });
   });
+});
+
+
+
+describe('chrome-tab - more', function () {
+
+  before(done => {
+    Chrome.start().then(() => done());
+  });
+
+  after(done => {
+    Chrome.killall().then(() => done());
+  });
 
   it('should open a tab & manually close it', function (done) {
     new Tab(noCloseUrl)
@@ -118,6 +131,17 @@ describe('chrome-tab - basic', function () {
         assert.equal(count, 3);
         done();
       });
+  });
+
+  it('should timeout and reject', function (done) {
+    Tab.open(noCloseUrl, {
+      waitForDone: true,
+      timeout: 50
+    })
+      .catch(err => {
+        assert.ok(/Tab timed out/.test(err.message));
+        done();
+      })
   });
 });
 

@@ -5,7 +5,9 @@ var targetUrl = 'file://' + require('path').resolve('./sample/target.html');
 
 // process.on('uncaughtException', err => console.log(333, err))
 
-Chrome.start()
+Chrome.start({
+  canary: true
+})
   .then(run)
   .catch(err => {
     console.log('Error starting chrome', err);
@@ -20,7 +22,8 @@ function run(chrome) {
 
   var options = {
     verbose: true,
-    failonerror: false
+    failonerror: false,
+    timeout: 2000   // set this lower to see timeout behavior
   };
 
   new Tab(targetUrl, options)
@@ -48,9 +51,15 @@ function run(chrome) {
         .then(() => tab);
     })
     .then(tab => tab.close())
-    .then(() => {
-      console.log('Exiting chrome', chrome.pid);
-      Chrome.kill(chrome);
-      process.exit(0);
+    .then(() => exit(chrome))
+    .catch(err => {
+      console.log('Got error:', err);
+      exit(chrome);
     });
+}
+
+function exit(chrome) {
+  console.log('Exiting chrome', chrome.pid);
+  Chrome.kill(chrome);
+  process.exit(0);
 }

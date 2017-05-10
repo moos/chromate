@@ -228,6 +228,7 @@ Default settings. May be overridden by passing in options.
 | screenshot | <code>boolean</code> | <code>false</code> | take a screenshot (WIP!) |
 | viewport | <code>object</code> | <code>width:680,height:800</code> | window width & height |
 | waitForDone | <code>boolean</code> | <code>false</code> | set to true to have tab wait for a 'done' event   from the target.  The result is returned in tab.result. |
+| timeout | <code>number</code> | <code>0</code> | tab rejects and closes after this time in msec (0 to disable) |
 
 <a name="Tab.list"></a>
 ### Tab.list([options]) ⇒ <code>Promise.&lt;Array&gt;</code>

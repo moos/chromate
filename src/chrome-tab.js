@@ -40,14 +40,31 @@ function closeTab(tabId, options) {
 
 function newTab(client, targetUrl, options) {
   var self = this;
+  var timer;
   var fireEvent = function () {
     if (!self || !self.emit) return;
     return self.emit.apply(self, arguments);
+  };
+  var fulfilled = false;
+  var fulfill  = function (fn, result) {
+    if (timer) clearTimeout(timer);
+    fulfilled = true;
+    fn(result);
   };
 
   options = Object.assign({}, Tab.settings, options || {});
 
   return new Promise((resolve, reject) => {
+
+    // set timer
+    if (options.timeout) {
+      timer = setTimeout(function () {
+        clearTimeout(timer);
+        if (!fulfilled) {
+          reject(new Error(`Tab timed out (${client.target.id}, ${client.target.url}).`));
+        }
+      }, options.timeout);
+    }
 
     client.Emulation.setVisibleSize({
       width : options.viewport.width,
@@ -73,7 +90,7 @@ function newTab(client, targetUrl, options) {
       options.verbose && console.log('-> loadEventFired');
       fireEvent('load', param, self);
 
-      if (!options.waitForDone) resolve(self);
+      if (!options.waitForDone) fulfill(resolve,self);
     });
 
     client.Log.entryAdded((entry) => {
@@ -84,7 +101,7 @@ function newTab(client, targetUrl, options) {
 
       if (entry.entry.level === 'error' && options.failonerror) {
         console.log('-> ', entry);
-        reject(entry.entry);
+        fulfill(reject, entry.entry);
       }
     });
 
@@ -111,8 +128,8 @@ function newTab(client, targetUrl, options) {
 
           if (!options.waitForDone) break;
 
-          if (options.screenshot) screenCapture(client, options).then(() => resolve(self));
-          else resolve(self);
+          if (options.screenshot) screenCapture(client, options).then(() => fulfill(resolve, self));
+          else fulfill(resolve, self);
           break;
 
         default:
@@ -144,7 +161,7 @@ function newTab(client, targetUrl, options) {
     })
     .catch((err) => {
       // console.error(`ERROR: ${err.message}`, err);
-      reject(err);
+      fulfill(reject, err);
     });
   });
 }
@@ -275,6 +292,7 @@ Object.assign(Tab, {
    * @prop viewport=width:680,height:800 {object} window width & height
    * @prop waitForDone=false {boolean} set to true to have tab wait for a 'done' event
    *   from the target.  The result is returned in tab.result.
+   * @prop timeout=0 {number} tab rejects and closes after this time in msec (0 to disable)
    *
    * @memberOf Tab
    */
@@ -287,7 +305,8 @@ Object.assign(Tab, {
       width : 680,
       height: 800
     },
-    waitForDone: false
+    waitForDone: false,
+    timeout: 0
   },
 
   /**
