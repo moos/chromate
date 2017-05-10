@@ -5,6 +5,9 @@
  * @licence MIT
  */
 
+// TODO support --user-data-dir
+
+
 /**
  * @constant {string} CHROME_BIN (Environment variable) location
  * of Chrome executable
@@ -213,12 +216,12 @@ var Chrome = module.exports = {
       (function retry() {
         checkReady(options)
           .then(resolve)
-          .catch(() => {
+          .catch(err => {
             if (--tries > 0) {
               delay(options.retryInterval).then(retry);
               return;
             }
-            reject();
+            reject(err);
           });
       })();
     });
@@ -285,7 +288,7 @@ var Chrome = module.exports = {
         result = result.filter(res => {
           var ok = true;
           res.arguments.forEach(arg => {
-            if (arg === '--type=renderer' || arg === '--type=zygote') {
+            if (/--type=/.test(arg)) {
               ok = false;
             }
           });
