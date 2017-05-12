@@ -21,11 +21,14 @@ var Tab = require('chromate').Tab;
 
 // start a headless Chrome process
 Chrome.start().then(chrome => {
-  Tab.open(targetUrl, {
+  var tab = new Tab(targetUrl);
+  tab.open(targetUrl, {
     verbose: true,
     failonerror: false
   })
-  .then(tab => tab.close())
+  .then(() => tab.evaluate('testResults'))
+  .then(res => console.log) // results...
+  .then(() => tab.close())
   .then(
     Chrome.kill(chrome);
     process.exit(0);
@@ -35,7 +38,7 @@ Chrome.start().then(chrome => {
 
 ### Page events
 Handle events, including any [chrome-remote-interface](https://github.com/cyrus-and/chrome-remote-interface#class-cdp) events.
-In this case we instantiate a class (rather than calling `Tab.open` statically like above):
+In this case we instantiate a class (rather than calling `Tab.open()` statically):
 ```js
 new Tab(targetUrl, options)
  .on('ready', (tab) => console.log('tab is ready', tab.client.target.id))
@@ -49,34 +52,56 @@ fire any number of custom events.
 
 ### Custom target events
 A target page may communicate back to the controlling process by
-calling `console.debug()` in the following format.  This is useful for running automated tests, such as for
+calling `__chromate(message)` or `console.debug()` in the following format.  
+This is useful for running automated tests, such as for
 replacing [PhantomJS](http://phantomjs.org/).
 ```js
-// in targetUrl
+// in target (useful for any length message)
+if (window.__chromate) __chromate({event: 'done', data: {foo:1}});;
+
+// or - useful for short messages (< 100 chars)
 console.debug({
   event: 'done',
-  data: JSON.stringify({foo: 1})
+  data: JSON.stringify({foo: 1}) // must be stringify'd
 });
 
-// in runner process
+// then, in runner process
 new Tab(targetUrl)
   .on('done', res => console.log); // {foo:1}
+```
+The format of the message is flexible, but should be sensible.  If no 'event' is found in the message,
+a 'data' event is triggered.
+```js
+// in target
+console.debug('foo');
+console.debug({a:1});
+
+// in runner
+tab.on('data', res => console.log) // 'foo' and {a:1}
 ```
 
 ### Script injection
 Often it's useful for the running script to inject custom JS into the target page.  This can 
   be done thorough [Page.addScriptToEvaluateOnLoad()](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-addScriptToEvaluateOnLoad)
-  or the [Runtime.evalauate()](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-evaluate) method.
+  or the [Runtime.evalauate()](https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-evaluate) method. 
+Two helper methods are provided.
 ```js
 new Tab(targetUrl)
   .on('done', (param, tab) => {
-     tab.client.Runtime.evaluate({expression: 'JSON.stringify(__coverage__)'})
+     tab.evaluate('JSON.stringify(__coverage__)')
        .then(result => console.log(result))
        .then(() => tab.close());
   })
   .open();
 ```
-
+You can also execute a _named_ function in target:
+```js
+new Tab(targetUrl)
+  .open()
+  .then(tab => {
+    tab.execute('getResult').then(res => console.log);
+  })
+```
 
 
 ## API
@@ -117,7 +142,7 @@ Default settings. May be overridden by passing options.
 
 <a name="Chrome.flags"></a>
 ### Chrome.flags : <code>Array.&lt;String&gt;</code>
-Default set of flags passed to Chrome.  See [src/chrome-proc.js](src/chrome-proc.js).
+Default set of flags passed to Chrome.  See [src/chrome-proc.js](src/chrome-proc.js#L139).
 
 
 
@@ -174,6 +199,8 @@ Get available Chrome path, checking for existence.  Specify `options.canary` to 
     * _instance_
         * [.open()](#Tab+open) ⇒ <code>Promise.&lt;Tab&gt;</code>
         * [.close()](#Tab+close) ⇒ <code>Promise</code>
+        * [.execute(fname, ...args, options)](#Tab+execute) ⇒ <code>Promise.&lt;result&gt;</code>
+        * [.evaluate(expr, options)](#Tab+evaluate) ⇒ <code>Promise.&lt;result&gt;</code>
     * _static_
         * [.settings](#Tab.settings)
         * [.list([options])](#Tab.list) ⇒ <code>Promise.&lt;Array&gt;</code>
@@ -201,20 +228,69 @@ Note that `tab.client` is the <a href="https://github.com/cyrus-and/chrome-remot
 **Emits**: 
 - <code>&#x27;ready&#x27;</code> - tab client is ready. Handlers get (tab).
 - <code>&#x27;load&#x27;</code> - page loaded.  Handlers get (data, tab).
-- <code>&#x27;done&#x27;</code> and other custom events as fired by the target page. Handlers get (data, tab).
+- <code>&#x27;data&#x27;</code> - unhandled calls to __chromate() or console.debug().  Handlers get (data, tab).
+- <code>&#x27;done&#x27;</code> and other custom events as fired by the target page. Handlers get (message, tab).
 
 See also events fired by [CDP](https://github.com/cyrus-and/chrome-remote-interface#class-cdp).
 
-Target may fire any number of custom events via `console.debug({event, data})`.  
+Target may fire any number of custom events via `__chromate({event, data})`.  
 
 
 <a name="Tab+close"></a>
 ### tab.close() ⇒ <code>Promise</code>
 Close a tab opened by tab.open().
 
+
+### tab.execute(fname, ...args, options) ⇒ <code>Promise.&lt;result&gt;</code>
+Execute a named function in target and get the result.  The function should return simple text values or use JSON.stringify. 
+Pass `options.awaitPromise` if the function returns a Promise.
+
+**Returns**: <code>Promise.&lt;result&gt;</code> - Promise gets return value of function.  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| fname | <code>string</code> | function name in target to execute |
+| ...args | <code>any</code> | additional arguments to pass to function |
+| options | <code>object</code> | options to pass to <a href="https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-evaluate">client.Runtime.evaluate()</a>. |
+
+**Example**  
+```js
+  tab.execute('getResults').then(result => console.log )  // {a:1}
+
+  // in target:
+  function getResult() { return JSON.stringify({a:1}); }
+```
+
+
+<a name="Tab+evaluate"></a>
+
+### tab.evaluate(expr, options) ⇒ <code>Promise.&lt;result&gt;</code>
+Evaluate an expression in target and get the result.
+
+**Returns**: <code>Promise.&lt;result&gt;</code> - Promise gets return value of expression.  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| expr | <code>string</code> | expression in target to evaluate |
+| options | <code>object</code> | options to pass to <a href="https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#method-evaluate">client.Runtime.evaluate()</a>. |
+
+**Example**  
+```js
+  // Objects must be evaluated using JSON.stringify:
+
+  tab.evaluate('JSON.stringify( data )').then(result => console.log) // data object
+```
+**Example**  
+```js
+  tab.evaluate('one + two').then(result => console.log) // 3
+
+  // in target
+  var one = 1;
+  var two = 2;
+```
+
+
 <a name="Tab.settings"></a>
-
-
 ### Tab.settings
 Default settings. May be overridden by passing in options.
 
@@ -263,6 +339,18 @@ of Chrome executable
 ## CHROME_PORT : <code>string</code>
 (Environment variable) port to use
 
+
+<a name="__chromate"></a>
+## __chromate()
+Function loaded _in target_ to communicate back to runner.
+
+**Example**  
+```js
+  tab.on('done', res => console.log)  // {event: 'done', data: {...}}
+  
+  // in target
+  if (window.__chromate) __chromate({event: 'done', data: {pass: 10, fail: 1}});
+```
 
 <a name="execPaths"></a>
 ## execPaths : <code>object</code> 
@@ -349,6 +437,8 @@ $ chromate close-tabs
 
 ## Change log
 
+- v0.2.0 Added expression and function evaluation and __chromate global for general message passing.  Events
+ now get complete message, not just the data part. (May 2017)
 - v0.1.x Initial version (May 2017)
 
 ## License

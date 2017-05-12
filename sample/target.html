@@ -7,7 +7,7 @@
 <body>
 <h1>Test</h1>
 <script>
-    console.log('foo was here', window.screen.width, window.screen.height);
+    console.log('target window size', window.screen.width, window.screen.height);
     console.log('UA =', navigator.userAgent);
 
     window.__coverage__ = {
@@ -19,22 +19,30 @@
       }
     };
 
-    setTimeout(() => {
-      console.debug({
-        event: 'foo',
-        data: JSON.stringify({bar:1})
-      });
+    console.log(''+__chromate);
+    __chromate({event: 'foo', a: 'was hegre'})
+    __chromate({event: 'fooaa', a: 'was hegre'})
+    __chromate('blah')
+    __chromate(false)
 
-      console.debug({
-        event: 'unhandled',
-        data: JSON.stringify({shoo:1})
-      });
 
+    // use this to send short < 100 char messages
+    console.debug({
+      event: 'foo',
+      data : JSON.stringify({bar:1})
+    });
+
+    console.debug({
+      event: 'unhandled',
+      data : JSON.stringify({shoo: 1})
+    });
+
+    setTimeout(function() {
       console.debug({
         event: 'done',
-        data: JSON.stringify({foo: 1})
+        data : JSON.stringify({foo: 1})
       });
-    }, 850);
+    }, 500)
 
 //    throw new Error('fooo');
 </script>

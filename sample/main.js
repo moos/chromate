@@ -34,24 +34,21 @@ function run(chrome) {
       tab.client.Page.addScriptToEvaluateOnLoad({
         scriptSource: 'console.log("in target", location.href)'
       });
-
-      // any event may prematurely terminate the Promise chain
-      // tab.promise.resolve(4444);
     })
     .on('Network.requestWillBeSent', param => console.log('network request custom handler', param.request.method))
     .once('Runtime.consoleAPICalled', param => console.log('Runtime.consoleAPICalled called', param))
     .on('load', (param, tab) => console.log('load', param))
     .on('foo', (param, tab) => console.log('foo', param))
-    .on('done', (param, tab) => console.log('done', param))
+    .on('done', (param, tab) => {
+      console.log('done', param);
+      tab.close().then(() => exit(chrome));
+    })
     .on('disconnect', (param, tab) => console.log('disconnect', param)) // not firing!
     .open()
     .then(tab => {
-      return tab.client.Runtime.evaluate({expression: 'JSON.stringify(__coverage__)'})
-        .then(result => console.log('Got coverage', JSON.parse(result.result.value)))
-        .then(() => tab);
+      return tab.evaluate('__coverage__')
+        .then(result => console.log('Got coverage', result));
     })
-    .then(tab => tab.close())
-    .then(() => exit(chrome))
     .catch(err => {
       console.log('Got error:', err);
       exit(chrome);

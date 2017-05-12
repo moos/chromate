@@ -4,10 +4,63 @@
 <body>
 <h1>Test with done event</h1>
 <script>
+
+    // > 100 character preview limit
+    var bigData = {
+      name: 'Chrome DevTools Protocol allows for tools to instrument',
+      result: {"failed":0,"passed":0,"total":0,"runtime":40}
+    };
+
+    var one = 1;
+    var two = 2;
+
+    function three(pre, post) {
+      return (pre || '') + 3 + (post || '');
+    }
+
+    function getObject(arg) {
+      return JSON.stringify(arg);
+    }
+
+    function withPromise(a) {
+      return Promise.resolve(a);
+    }
+
+    function myCallback() {
+      return JSON.stringify(bigData);
+    }
+
+    // raw debug calls with funky data
+    console.debug('');
+    console.debug(true);
+    console.debug(false);
+    console.debug(null);
+    console.debug(123);
+    console.debug('im string');
+    console.debug([1,2]);  // won't trigger event
+    console.debug({a:1});  // won't trigger event
+    // TODO regex!
+
+
+    // using injected method (good for any size data)
+    __chromate({foo: 'im foo', bar: bigData});  // won't trigger event
+    __chromate('blah');
+    __chromate(false);
+
+    // with 'event'
+    __chromate({event: 'baz', a: 'was here'});
+    __chromate({event: 'bigData', data: bigData});
+
+
     setTimeout(() => {
       console.debug({
         event: 'foo',
-        data: JSON.stringify({bar:1})
+        data: JSON.stringify({ bar: 1 })
+      });
+
+      console.debug({
+        event: 'long-message',
+        data: JSON.stringify(bigData)
       });
 
       console.debug({
@@ -17,8 +70,10 @@
 
       console.debug({
         event: 'done',
+        callback: 'myCallback',
         data: JSON.stringify({foo: 1})
       });
+
     }, 150);
 
 //    throw new Error('fooo');

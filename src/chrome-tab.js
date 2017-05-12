@@ -7,6 +7,8 @@
 
 var CDP = require('chrome-remote-interface');
 var fs = require('fs');
+var unmirror = require('chrome-unmirror');
+
 
 /**
  * @external EventEmitter
@@ -15,6 +17,17 @@ var fs = require('fs');
 var EventEmitter = require('events').EventEmitter;
 
 const outputPath = 'screenshot.png';
+
+/**
+ * Function loaded in target to communicate back to runner.
+ *
+ * @example
+ *   // in target
+ *   if (window.__chromate) __chromate({event: 'done', data: {pass: 10, fail: 1}});
+ *
+ * @function __chromate
+ */
+var __CHROMATE = ';if (!window.__chromate) window.__chromate = function (msg){ console.debug(JSON.stringify(msg||""))};';
 
 
 function getPort() {
@@ -93,6 +106,11 @@ function newTab(client, targetUrl, options) {
       if (!options.waitForDone) fulfill(resolve,self);
     });
 
+    // add helper method to target for comm with runner
+    client.Page.addScriptToEvaluateOnLoad({
+      scriptSource: __CHROMATE
+    });
+
     client.Log.entryAdded((entry) => {
       var e = entry.entry;
       if (options.verbose) {
@@ -116,15 +134,36 @@ function newTab(client, targetUrl, options) {
       if (!isDebug) return;
 
       // handle console.debug({event, data}) call from target
-      var result = parsePreview(res.args[0].preview);
+      var result = {};
+      var arg = res.args[0];
+
+      if (arg.type === 'object' && !Array.isArray(arg.value) && arg.value !== null) {
+        // NOTE: preview is limited to 100 characters!!!
+        result = parsePreview(arg.preview);
+
+      } else if (arg.type === 'string') { // data passed via __chromate is JSON.stringify'd
+        result = tryJsonParse(arg.value);
+
+      } else if (arg.subtype === 'array') {
+        result = unmirror(arg);
+
+      } else {
+        result = arg.value;
+      }
+
+      var event = (result || {}).event;
+      if (!event) event = 'data';
+
+      // console.log(11111, event, typeof result, result, arg);
 
       // event handled?
-      var handled = fireEvent(result.event, result.data, self);
+      var handled = fireEvent(event, result, self);
 
-      switch (result.event) {
+      // special handling for 'done'
+      switch (event) {
         case 'done':
-          options.verbose && console.log('-> done', result.data)
-          self.result = result.data;
+          options.verbose && console.log('-> done', result)
+          self.result = result;
 
           if (!options.waitForDone) break;
 
@@ -166,6 +205,14 @@ function newTab(client, targetUrl, options) {
   });
 }
 
+function tryJsonParse(data) {
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+  }
+  return data;
+}
+
 /**
  * parse a CDP 'preview' object consisting of {name, type, value}
  * @param prev
@@ -175,8 +222,9 @@ function newTab(client, targetUrl, options) {
 function parsePreview(prev) {
   var out = {};
   prev.properties.forEach(o => {
+    // console.log(66, o.name, o.value)
     if (o.name === 'data') {
-      out[o.name] = JSON.parse(o.value);
+      out[o.name] = tryJsonParse(o.value);
     } else {
       out[o.name] = o.value;
     }
@@ -227,7 +275,7 @@ class Tab extends EventEmitter {
    * Target may fire any number of custom events via
    * <tt>console.debug({event, data})</tt>.
    *
-   * @returns {Promise.<this>} Resolved as soon as the page loads.  If options.waitForDone is true,
+   * @returns {Promise.<Tab>} Resolved as soon as the page loads.  If options.waitForDone is true,
    *   waits for 'done' event from the target page before resolving.
    *   The data from the 'done' event is available as this.result.
    *
@@ -279,7 +327,83 @@ class Tab extends EventEmitter {
     }
     return closeTab(target.id, this.options);
   }
+
+  /**
+   * Execute a named function in target and get the result.
+   *
+   * The function should return simple text values or use JSON.stringify.
+   *
+   * Pass options.awaitPromise if the function returns a Promise.
+   *
+   * @param fname {string} function name in target to execute
+   * @param args {...any} additional arguments to pass to function
+   * @param options {object} options to pass to client.Runtime.evaluate().
+   * @returns {Promise.<result>} Promise gets return value of function.
+   * @example
+   *
+   *   tab.execute('getResults').then(result => console.log )  // {a:1}
+   *
+   *   // in target:
+   *   function getResult() { return JSON.stringify({a:1}); }
+   */
+  execute(fname /*, args, ...*/) {
+    var args = Array.from(arguments);
+    args.shift();
+
+    // check for options
+    var options = arguments.length > 1 && arguments[arguments.length - 1];
+    if (options &&
+      typeof options === 'object' &&
+        /awaitPromise|userGesture|returnByValue|generatePreview|contextId|includeCommandLineAPI|objectGroup|expression/.test(Object.keys(options).join())
+    ) {
+      args.pop();
+    } else {
+      options = {};
+    }
+
+    // map args
+    args = args.map(arg => {
+      if (typeof arg === 'number') return arg;
+      return JSON.stringify(arg);
+    });
+    args = `(${args.join()})`;
+
+    return this.evaluate(fname + args, options);
+  }
+
+  /**
+   * Evaluate an expression in target and get the result.
+   *
+   * @param expr {string} expression in target to evaluate
+   * @param options {object} options to pass to client.Runtime.evaluate().
+   * @returns {Promise.<result>} Promise gets return value of expression.
+   *
+   * @example
+   *   // Objects must be evaluated using JSON.stringify:
+   *   tab.evaluate('JSON.stringify( data )').then(result => console.log) // data object
+   *
+   * @example
+   *   tab.evaluate('one + two').then(result => console.log) // 3
+   *
+   *   // in target
+   *   var one = 1;
+   *   var two = 2;
+   */
+  evaluate(expr, options) {
+    options = options || {};
+    options.expression = expr;
+    return this.client.Runtime.evaluate(options)
+      .then(res => {
+        let value = res.result.value || res.result.description;
+        try {
+          value = JSON.parse(res.result.value);
+        } catch (e) {
+        }
+        return value;
+      });
+  }
 }
+
 
 Object.assign(Tab, {
   /**

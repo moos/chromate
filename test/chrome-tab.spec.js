@@ -8,6 +8,13 @@ var expect = {foo:1};
 var tabId;
 
 
+// same as in fixture/test.html
+var bigData = {
+  name: 'Chrome DevTools Protocol allows for tools to instrument',
+  result: {"failed":0,"passed":0,"total":0,"runtime":40}
+};
+
+
 describe('chrome-tab - basic', function () {
   /**
    * NOTE: there is dependency between the tests!!
@@ -36,7 +43,7 @@ describe('chrome-tab - basic', function () {
   it('should get new tab (and keep it open)', function (done) {
     Tab.newTab(aclient, targetUrl + '?111', {waitForDone: true})
       .then(tab => {
-        assert.deepEqual(tab.result, expect);
+        assert.deepEqual(tab.result.data, expect);
         done();
       });
   });
@@ -46,7 +53,7 @@ describe('chrome-tab - basic', function () {
     new Tab(targetUrl, options)
       .open()
       .then(tab => {
-        assert.deepEqual(tab.result, expect);
+        assert.deepEqual(tab.result.data, expect);
         assert.deepEqual(options.foo, 2, 'options was not modified');
         tab.close().then(done);
       });
@@ -66,7 +73,7 @@ describe('chrome-tab - basic', function () {
     var options = {foo: 2, waitForDone: true};
     Tab.open(targetUrl, options)
       .then(tab => {
-        assert.deepEqual(tab.result, expect);
+        assert.deepEqual(tab.result.data, expect);
         assert.deepEqual(options.foo, 2, 'options was not modified');
         tab.close().then(done);
       });
@@ -90,7 +97,6 @@ describe('chrome-tab - basic', function () {
     });
   });
 });
-
 
 
 describe('chrome-tab - more', function () {
@@ -146,6 +152,112 @@ describe('chrome-tab - more', function () {
 });
 
 
+describe('chrome-tab - expressions', function () {
+
+  before(done => {
+    Chrome.start().then(() => done());
+  });
+
+  after(done => {
+    Chrome.killall().then(() => done());
+  });
+
+  it('should evaluate a simple expression', function (done) {
+    new Tab(targetUrl)
+      .open()
+      .then(tab => {
+        tab.evaluate('one + two').then(res => {
+          assert.equal(res, 3);
+          tab.close().then(done);
+        });
+      })
+  });
+
+  it('should evaluate an object expression (using JSON.stringify)', function (done) {
+    new Tab(targetUrl)
+      .open()
+      .then(tab => {
+        tab.evaluate('JSON.stringify(bigData)').then(res => {
+          assert.deepEqual(res, bigData);
+          tab.close().then(done);
+        });
+      })
+  });
+
+  it('should evaluate a Promise expression', function (done) {
+    new Tab(targetUrl)
+      .open()
+      .then(tab => {
+        tab.evaluate('Promise.resolve(123)', {
+          awaitPromise: true
+        }).then(res => {
+          assert.equal(res, 123);
+          tab.close().then(done);
+        });
+      })
+  });
+
+  it('should evaluate an expression with errors', function (done) {
+    new Tab(targetUrl)
+      .open()
+      .then(tab => {
+        tab.evaluate('one + ')
+          .then(res => {
+            assert.equal(res, 'SyntaxError: Unexpected end of input');
+          })
+          .then(() => {
+            tab.evaluate('unknown').then(res => {
+              var expect = 'ReferenceError: unknown is not defined';
+              assert.equal(res.substr(0, expect.length), expect);
+            })
+          })
+          .then(() => tab.close())
+          .then(done)
+      })
+  });
+
+  it('should evaluate a function', function (done) {
+    new Tab(targetUrl)
+      .open()
+      .then(tab => {
+        tab.execute('three').then(res => {
+          assert.equal(res, 3);
+          tab.close().then(done);
+        });
+      })
+  });
+
+  it('should evaluate a function with arguments', function (done) {
+    var tab = new Tab(targetUrl, {verbose: false});
+    tab.open()
+      .then(() => tab.execute('three').then(res =>
+        assert.equal(res, 3)))
+
+      .then(() => tab.execute('three', 1, 2).then(res =>
+        assert.equal(res, 6)))
+
+      .then(() => tab.execute('three', 'pre-', '-post').then(res =>
+        assert.equal(res, 'pre-3-post')))
+
+      .then(() => tab.execute('three', [1, 2]).then(res =>
+        assert.equal(res, [1, 23])))
+
+      .then(() => tab.execute('getObject', {a: 1}).then(res =>
+        assert.deepEqual(res, {a:1})))
+
+      .then(() => tab.execute('withPromise', 123).then(res =>
+        assert.equal(res, 'Promise')))
+
+      .then(() => tab.execute('withPromise', 123, {awaitPromise: true}).then(res =>
+        assert.equal(res, 123)))
+
+      .then(() => tab.close())
+      .then(done);
+  });
+
+});
+
+
 describe('chrome-tab - events', function () {
 
   before((done) => {
@@ -175,14 +287,13 @@ describe('chrome-tab - events', function () {
       })
       .on('foo', function (res, tab) {
         ++calls;
-        assert.deepEqual(res, {bar: 1});
+        assert.deepEqual(res.data, {bar: 1});
         assert.equal(tab.options.foo, 123);
       })
       .on('done', function (res, tab) {
         ++calls;
-        assert.deepEqual(res, expect);
+        assert.deepEqual(res.data, expect);
         assert.equal(tab.options.foo, 123);
-
         assert.equal(calls, 4);
         tab.close().then(done);
       })
@@ -190,6 +301,47 @@ describe('chrome-tab - events', function () {
       .then(tab => {
         assert.deepEqual(tab.result, undefined, 'done event has not processed yet');
       });
+  });
+
+  it('should call funky events', function (done) {
+    var count = 0;
+    var expect = 13;
+    new Tab(targetUrl, {verbose: false})
+      .on('data', res =>  {++count})
+      .on('baz', res => {assert.equal(res.a, 'was here'); ++count})
+      .on('bigData', res => {assert.deepEqual(res.data, bigData); ++count})
+      .on('done', function (res, tab) {
+        assert.equal(count, expect);
+        tab.close().then(done);
+      })
+      .open();
+  });
+
+  it('should return long message as truncated string', function (done) {
+    new Tab(targetUrl)
+      .on('long-message', function (res, tab) {
+        assert.equal(typeof res.data, 'string', 'data is a string');
+        assert.ok(/…/.test(res.data), 'data has ellipses');
+      })
+      .on('done', function (res, tab) {
+        tab.close().then(done);
+      })
+      .open();
+  });
+
+  it('should handle callbacks', function (done) {
+    new Tab(targetUrl)
+      .on('done', function (res, tab) {
+        assert.deepEqual(res.data, expect);
+        assert.equal(typeof res.callback, 'string');
+
+        // call callback
+        tab.execute(res.callback).then(res => {
+          assert.deepEqual(res, bigData);
+          tab.close().then(done);
+        });
+      })
+      .open();
   });
 
   it('should handle CDP events', function (done) {

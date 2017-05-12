@@ -1,6 +1,6 @@
 {
   "name": "chromate",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "description": "A mate for your Headless Chrome, mate.",
   "main": "index.js",
   "bin": "bin/cli.js",
@@ -23,7 +23,8 @@
     "jsdoc": "latest"
   },
   "dependencies": {
-    "ps-node": "^0.1.6",
-    "chrome-remote-interface": "^0.21.0"
+    "chrome-remote-interface": "^0.21.0",
+    "chrome-unmirror": "^0.1.0",
+    "ps-node": "^0.1.6"
   }
 }
