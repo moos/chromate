@@ -251,16 +251,14 @@ function screenCapture(client, options) {
 
 class Tab extends EventEmitter {
   /**
-   * @param targetUrl="about:blank" {string} url to load in tab
    * @param [options] {object} see settings
    * @constructor
    * @extends external:EventEmitter
    */
-  constructor(targetUrl, options) {
+  constructor(options) {
     super(); //must call super for "this" to be defined.
 
     this.options = Object.assign({}, Tab.settings, options || {});
-    this.targetUrl = targetUrl || 'about:blank';
   }
 
   /**
@@ -275,6 +273,7 @@ class Tab extends EventEmitter {
    * Target may fire any number of custom events via
    * <tt>console.debug({event, data})</tt>.
    *
+   * @param targetUrl="about:blank" {string} url to load in tab
    * @returns {Promise.<Tab>} Resolved as soon as the page loads.  If options.waitForDone is true,
    *   waits for 'done' event from the target page before resolving.
    *   The data from the 'done' event is available as this.result.
@@ -283,7 +282,7 @@ class Tab extends EventEmitter {
    *
    * @memberOf Tab
    */
-  open() {
+  open(targetUrl) {
     var self = this;
     var options = this.options;
     var close = function (result) {
@@ -300,6 +299,8 @@ class Tab extends EventEmitter {
       });
       return Promise.resolve(client);
     };
+
+    this.targetUrl = targetUrl || 'about:blank';
 
     return getClient(options)
       .then(pipeClientEvents)
@@ -335,10 +336,11 @@ class Tab extends EventEmitter {
    *
    * Pass options.awaitPromise if the function returns a Promise.
    *
-   * @param fname {string} function name in target to execute
+   * @param func {string|function} function name in target, or function, to execute in target.
    * @param args {...any} additional arguments to pass to function
    * @param options {object} options to pass to client.Runtime.evaluate().
-   * @returns {Promise.<result>} Promise gets return value of function.
+   * @returns {Promise.<result>} Promise gets return value of function.  Objects
+   *   (including Arrays) should be JSON.stringify'd.
    * @example
    *
    *   tab.execute('getResults').then(result => console.log )  // {a:1}
@@ -346,9 +348,14 @@ class Tab extends EventEmitter {
    *   // in target:
    *   function getResult() { return JSON.stringify({a:1}); }
    */
-  execute(fname /*, args, ...*/) {
+  execute(func /*, args, ...*/) {
     var args = Array.from(arguments);
     args.shift();
+
+    // convert function to string to pass to target
+    if (typeof func === 'function') {
+      func = `(${String(func)})`;
+    }
 
     // check for options
     var options = arguments.length > 1 && arguments[arguments.length - 1];
@@ -368,7 +375,7 @@ class Tab extends EventEmitter {
     });
     args = `(${args.join()})`;
 
-    return this.evaluate(fname + args, options);
+    return this.evaluate(func + args, options);
   }
 
   /**
@@ -476,7 +483,7 @@ Object.assign(Tab, {
    * @memberOf Tab
    */
   open: function (targetUrl, options) {
-    return new Tab(targetUrl, options).open()
+    return new Tab(options).open(targetUrl);
   },
 
   /**

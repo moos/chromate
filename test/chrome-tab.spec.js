@@ -50,8 +50,8 @@ describe('chrome-tab - basic', function () {
 
   it('should open a tab which closes itself', function (done) {
     var options = {foo: 2, waitForDone: true};
-    new Tab(targetUrl, options)
-      .open()
+    new Tab(options)
+      .open(targetUrl)
       .then(tab => {
         assert.deepEqual(tab.result.data, expect);
         assert.deepEqual(options.foo, 2, 'options was not modified');
@@ -110,8 +110,8 @@ describe('chrome-tab - more', function () {
   });
 
   it('should open a tab & manually close it', function (done) {
-    new Tab(noCloseUrl)
-      .open()
+    new Tab()
+      .open(noCloseUrl)
       .then(tab => {
         assert.equal(tab.client.target.type, 'page');
         tab.close().then(done);
@@ -152,7 +152,7 @@ describe('chrome-tab - more', function () {
 });
 
 
-describe('chrome-tab - expressions', function () {
+describe('chrome-tab - evaluate()', function () {
 
   before(done => {
     Chrome.start().then(() => done());
@@ -163,8 +163,8 @@ describe('chrome-tab - expressions', function () {
   });
 
   it('should evaluate a simple expression', function (done) {
-    new Tab(targetUrl)
-      .open()
+    new Tab()
+      .open(targetUrl)
       .then(tab => {
         tab.evaluate('one + two').then(res => {
           assert.equal(res, 3);
@@ -174,8 +174,8 @@ describe('chrome-tab - expressions', function () {
   });
 
   it('should evaluate an object expression (using JSON.stringify)', function (done) {
-    new Tab(targetUrl)
-      .open()
+    new Tab()
+      .open(targetUrl)
       .then(tab => {
         tab.evaluate('JSON.stringify(bigData)').then(res => {
           assert.deepEqual(res, bigData);
@@ -185,8 +185,8 @@ describe('chrome-tab - expressions', function () {
   });
 
   it('should evaluate a Promise expression', function (done) {
-    new Tab(targetUrl)
-      .open()
+    new Tab()
+      .open(targetUrl)
       .then(tab => {
         tab.evaluate('Promise.resolve(123)', {
           awaitPromise: true
@@ -198,8 +198,8 @@ describe('chrome-tab - expressions', function () {
   });
 
   it('should evaluate an expression with errors', function (done) {
-    new Tab(targetUrl)
-      .open()
+    new Tab()
+      .open(targetUrl)
       .then(tab => {
         tab.evaluate('one + ')
           .then(res => {
@@ -216,9 +216,21 @@ describe('chrome-tab - expressions', function () {
       })
   });
 
-  it('should evaluate a function', function (done) {
-    new Tab(targetUrl)
-      .open()
+});
+
+describe('chrome-tab - execute()', function () {
+
+  before(done => {
+    Chrome.start().then(() => done());
+  });
+
+  after(done => {
+    Chrome.killall().then(() => done());
+  });
+
+  it('should execute a named function', function (done) {
+    new Tab()
+      .open(targetUrl)
       .then(tab => {
         tab.execute('three').then(res => {
           assert.equal(res, 3);
@@ -227,9 +239,24 @@ describe('chrome-tab - expressions', function () {
       })
   });
 
-  it('should evaluate a function with arguments', function (done) {
-    var tab = new Tab(targetUrl, {verbose: false});
-    tab.open()
+  it('should execute a local function in target', function (done) {
+    var fn = function() {
+      // note this is executed in target context!
+      return JSON.stringify({a: 1, b: 'foo-bar', c: document.title});
+    };
+    new Tab()
+      .open(targetUrl)
+      .then(tab => {
+        tab.execute(fn).then(res => {
+          assert.deepEqual(res, {a: 1, b: 'foo-bar', c: 'test.html'});
+          tab.close().then(done);
+        });
+      })
+  });
+
+  it('should execute a named function with arguments', function (done) {
+    var tab = new Tab({verbose: false});
+    tab.open(targetUrl)
       .then(() => tab.execute('three').then(res =>
         assert.equal(res, 3)))
 
@@ -255,6 +282,40 @@ describe('chrome-tab - expressions', function () {
       .then(done);
   });
 
+  it('should execute a local function with arguments', function (done) {
+    var fn = function (a,b) {
+      return b ? a + b : a;
+    };
+    var fnPromise = function(a) {
+      return Promise.resolve(a);
+    };
+    var tab = new Tab({verbose: false});
+    tab.open(targetUrl)
+      .then(() => tab.execute(fn).then(res =>
+        assert.equal(res, undefined)))
+
+      .then(() => tab.execute(fn, 1, 2).then(res =>
+        assert.equal(res, 3)))
+
+      .then(() => tab.execute(fn, 'pre-', '-post').then(res =>
+        assert.equal(res, 'pre--post')))
+
+      .then(() => tab.execute(fn, [1, 2]).then(res =>
+        assert.equal(res, 'Array(2)')))
+
+      .then(() => tab.execute(fn, {a: 1}).then(res =>
+        assert.deepEqual(res, 'Object')))
+
+      .then(() => tab.execute(fnPromise, 123).then(res =>
+        assert.equal(res, 'Promise')))
+
+      .then(() => tab.execute(fnPromise, 123, {awaitPromise: true}).then(res =>
+        assert.equal(res, 123)))
+
+      .then(() => tab.close())
+      .then(done);
+  });
+
 });
 
 
@@ -274,7 +335,7 @@ describe('chrome-tab - events', function () {
         foo: 123
       };
 
-    new Tab(targetUrl, options)
+    new Tab(options)
       .on('ready', function (tab) {
         ++calls;
         assert.equal(tab.client.target.type, 'page');
@@ -297,7 +358,7 @@ describe('chrome-tab - events', function () {
         assert.equal(calls, 4);
         tab.close().then(done);
       })
-      .open()
+      .open(targetUrl)
       .then(tab => {
         assert.deepEqual(tab.result, undefined, 'done event has not processed yet');
       });
@@ -306,7 +367,7 @@ describe('chrome-tab - events', function () {
   it('should call funky events', function (done) {
     var count = 0;
     var expect = 13;
-    new Tab(targetUrl, {verbose: false})
+    new Tab({verbose: false})
       .on('data', res =>  {++count})
       .on('baz', res => {assert.equal(res.a, 'was here'); ++count})
       .on('bigData', res => {assert.deepEqual(res.data, bigData); ++count})
@@ -314,11 +375,11 @@ describe('chrome-tab - events', function () {
         assert.equal(count, expect);
         tab.close().then(done);
       })
-      .open();
+      .open(targetUrl);
   });
 
   it('should return long message as truncated string', function (done) {
-    new Tab(targetUrl)
+    new Tab()
       .on('long-message', function (res, tab) {
         assert.equal(typeof res.data, 'string', 'data is a string');
         assert.ok(/…/.test(res.data), 'data has ellipses');
@@ -326,11 +387,11 @@ describe('chrome-tab - events', function () {
       .on('done', function (res, tab) {
         tab.close().then(done);
       })
-      .open();
+      .open(targetUrl);
   });
 
   it('should handle callbacks', function (done) {
-    new Tab(targetUrl)
+    new Tab()
       .on('done', function (res, tab) {
         assert.deepEqual(res.data, expect);
         assert.equal(typeof res.callback, 'string');
@@ -341,7 +402,7 @@ describe('chrome-tab - events', function () {
           tab.close().then(done);
         });
       })
-      .open();
+      .open(targetUrl);
   });
 
   it('should handle CDP events', function (done) {
@@ -350,7 +411,7 @@ describe('chrome-tab - events', function () {
         foo: 123
       };
 
-    new Tab(targetUrl, options)
+    new Tab(options)
       .once('event', message => {
         ++calls;
         assert.equal(message.method, 'Runtime.executionContextCreated');
@@ -361,7 +422,7 @@ describe('chrome-tab - events', function () {
         if (process.platform === 'win32') expectedUrl = expectedUrl.replace('/C:', '//C:');
         assert.equal(param.request.url, expectedUrl);
       })
-      .open()
+      .open(targetUrl)
       .then(tab => {
         assert.equal(calls, 2);
         tab.close().then(done);

@@ -5,9 +5,7 @@ var targetUrl = 'file://' + require('path').resolve('./sample/target.html');
 
 // process.on('uncaughtException', err => console.log(333, err))
 
-Chrome.start({
-  canary: true
-})
+Chrome.start({canary: true})
   .then(run)
   .catch(err => {
     console.log('Error starting chrome', err);
@@ -26,7 +24,7 @@ function run(chrome) {
     timeout: 2000   // set this lower to see timeout behavior
   };
 
-  new Tab(targetUrl, options)
+  new Tab(options)
     .on('ready', tab => {
       console.log('ready', tab.client.target.id);
 
@@ -44,7 +42,7 @@ function run(chrome) {
       tab.close().then(() => exit(chrome));
     })
     .on('disconnect', (param, tab) => console.log('disconnect', param)) // not firing!
-    .open()
+    .open(targetUrl)
     .then(tab => {
       return tab.evaluate('__coverage__')
         .then(result => console.log('Got coverage', result));
