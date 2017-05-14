@@ -27,14 +27,14 @@
  * @ignore
  */
 var execPaths = {
-  darwin: '/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome',
+  darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   linux: '/opt/google/chrome-beta/chrome',  // TODO remove beta once 59 is out of beta
   win32: 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
 };
 
 
 var execPaths_canary = {
-  darwin: '/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary',
+  darwin: '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
   linux: 'Chrome Canary is currently not available on the Linux platform. :(',
   win32: process.env.LOCALAPPDATA + '\\Google\\Chrome SxS\\Application\\chrome.exe'
 };
