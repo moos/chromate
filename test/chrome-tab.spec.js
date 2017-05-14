@@ -1,8 +1,12 @@
 var assert = require('assert');
 var Chrome = require('../index').Chrome;
 var Tab = require('../index').Tab;
-var targetUrl = 'file://' + require('path').resolve('./test/fixtures/test.html');
-var noCloseUrl = 'file://' + require('path').resolve('./test/fixtures/no-close.html');
+var url = function(file) {
+  return 'file://' + require('path').resolve('./test/fixtures/' + file);
+}
+var targetUrl = url('test.html');
+var noCloseUrl = url('no-close.html');
+var throwsUrl = url('throws.html');
 var aclient;
 var expect = {foo:1};
 var tabId;
@@ -364,15 +368,82 @@ describe('chrome-tab - events', function () {
       });
   });
 
+  it('should call console events', function (done) {
+    var calls = 0;
+
+    new Tab({waitForDone: true, verbose: false})
+      // .on('Runtime.consoleAPICalled', param => console.log('Runtime.consoleAPICalled called', param))
+      .on('console.log', function (res, tab) {
+        ++calls;
+        assert.equal(res.type, 'log');
+        assert.equal(res.text, '1 2 3');
+      })
+      .on('console.warning', function (res, tab) {
+        ++calls;
+        assert.equal(res.type, 'warning');
+        assert.equal(res.text, 'danger');
+      })
+      .on('console.error', function (res, tab) {
+        ++calls;
+        assert.equal(res.type, 'error');
+        assert.equal(res.text.substring(0, 10), 'Error: foo');
+      })
+      .on('console.info', function (res, tab) {
+        ++calls;
+        assert.equal(res.type, 'info');
+        assert.equal(res.text, '[1,2]');
+      })
+      .on('console', function (res, tab) {
+        ++calls;
+        assert.equal(res.type, 'dir');
+        assert.equal(res.text, 'im console.dir');
+      })
+      .on('done', function () {
+        assert.equal(calls, 5);
+      })
+      .open(targetUrl)
+      .then(tab => tab.close())
+      .then(done);
+  });
+
+  it('should handle exception', function (done) {
+    var calls = 0;
+
+    new Tab({waitForDone: false})
+      .on('exception', function (err, tab) {
+        ++calls;
+        assert.equal(err.exceptionDetails.exception.className, 'Error');
+        assert.equal(err.exceptionDetails.exception.description.substr(0,10), 'Error: foo');
+      })
+      .on('done', function () {
+        assert.equal(calls, 1);
+      })
+      .open(throwsUrl)
+      .then(tab => tab.close())
+      .then(done);
+  });
+
+  it('should handle abort', function (done) {
+    new Tab()
+      .on('abort', function (message, tab) {
+        assert.equal(message.event, 'abort');
+        assert.equal(message.code, 110);
+        tab.close().then(done);
+      })
+      .open(noCloseUrl)
+      .then(tab => {
+        tab.evaluate('__chromate({event:"abort", code: 110})');
+      });
+  });
+
   it('should call funky events', function (done) {
     var count = 0;
-    var expect = 13;
     new Tab({verbose: false})
       .on('data', res =>  {++count})
       .on('baz', res => {assert.equal(res.a, 'was here'); ++count})
       .on('bigData', res => {assert.deepEqual(res.data, bigData); ++count})
       .on('done', function (res, tab) {
-        assert.equal(count, expect);
+        assert.equal(count, 13);
         tab.close().then(done);
       })
       .open(targetUrl);

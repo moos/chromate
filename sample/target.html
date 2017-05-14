@@ -10,6 +10,12 @@
     console.log('target window size', window.screen.width, window.screen.height);
     console.log('UA =', navigator.userAgent);
 
+    console.log(new Error('foo'));
+    console.log('array is here', {a:1}, [1,22222, 'foo']);
+
+//        throw new Error('fooo');
+//    __chromate({event: 'abort', code: 0});
+
     window.__coverage__ = {
       'js/main.js': {
         lines     : 10,

@@ -14,7 +14,7 @@
  */
 
 /**
- * @constant {string} CHROME_PORT (Environment variable) port to use
+ * @constant {number} CHROME_PORT (Environment variable) port to use
  */
 
 /**
@@ -24,6 +24,7 @@
  * @prop darwin {string} path for darwin platform
  * @prop linux {string} path for linux platform
  * @prop win32 {string} path for win32 platform
+ * @ignore
  */
 var execPaths = {
   darwin: '/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome',
@@ -93,9 +94,7 @@ function checkReady(options) {
 
 
 /**
- * This is a static class - no ctor!
- *
- * @class Chrome
+ * @namespace Chrome
  */
 var Chrome = module.exports = {
 

@@ -33,9 +33,12 @@ function run(chrome) {
         scriptSource: 'console.log("in target", location.href)'
       });
     })
+    .on('abort', (a) => exit(chrome))
     .on('Network.requestWillBeSent', param => console.log('network request custom handler', param.request.method))
     .once('Runtime.consoleAPICalled', param => console.log('Runtime.consoleAPICalled called', param))
     .on('load', (param, tab) => console.log('load', param))
+    .on('exception', (param, tab) => exit(chrome))
+    .on('console', (param, tab) => console.log('console', param.type, param.text))
     .on('foo', (param, tab) => console.log('foo', param))
     .on('done', (param, tab) => {
       console.log('done', param);

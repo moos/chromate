@@ -51,6 +51,7 @@ function closeTab(tabId, options) {
   });
 }
 
+
 function newTab(client, targetUrl, options) {
   var self = this;
   var timer;
@@ -64,6 +65,9 @@ function newTab(client, targetUrl, options) {
     fulfilled = true;
     fn(result);
   };
+  var print = function (message) {
+    options.verbose && console.log(message);
+  };
 
   options = Object.assign({}, Tab.settings, options || {});
 
@@ -74,7 +78,7 @@ function newTab(client, targetUrl, options) {
       timer = setTimeout(function () {
         clearTimeout(timer);
         if (!fulfilled) {
-          reject(new Error(`Tab timed out (${client.target.id}, ${client.target.url}).`));
+          reject(new Error(`Tab timed out at ${options.timeout} msec (${client.target.id}, ${client.target.url}).`));
         }
       }, options.timeout);
     }
@@ -87,7 +91,7 @@ function newTab(client, targetUrl, options) {
     if (options.verbose) {
       client.Network.requestWillBeSent(params => {
         const url = params.request.url;
-        console.log(`-> ${params.requestId} ${params.request.method} ${url.substring(0, 150)}`);
+        print(`-> ${params.requestId} ${params.request.method} ${url.substring(0, 150)}`);
       });
     }
 
@@ -95,12 +99,12 @@ function newTab(client, targetUrl, options) {
       // console.log('loadingFailed:', params.requestId, params.errorText);
     });
 
-    if (options.verbose) client.Network.loadingFinished(params => {
-      console.log('<-', params.requestId, params.encodedDataLength);
+    if (options.verbose > 1) client.Network.loadingFinished(params => {
+      print('<-', params.requestId, params.encodedDataLength);
     });
 
     client.Page.loadEventFired(param => {
-      options.verbose && console.log('-> loadEventFired');
+      print('-> loadEventFired');
       fireEvent('load', param, self);
 
       if (!options.waitForDone) fulfill(resolve,self);
@@ -113,12 +117,10 @@ function newTab(client, targetUrl, options) {
 
     client.Log.entryAdded((entry) => {
       var e = entry.entry;
-      if (options.verbose) {
-        console.log(`-> ${e.networkRequestId} ${e.source} ${e.level}: ${e.text} (${e.url})`);
-      }
+      print(`--> ${e.networkRequestId} ${e.source} ${e.level}: ${e.text} (${e.url})`);
 
       if (entry.entry.level === 'error' && options.failonerror) {
-        console.log('-> ', entry);
+        console.log('--> ', entry);
         fulfill(reject, entry.entry);
       }
     });
@@ -126,43 +128,51 @@ function newTab(client, targetUrl, options) {
     // mirror console.log() and listen for console.debug()
     client.Runtime.consoleAPICalled(res => {
       var isDebug = res.type === 'debug';
+      var msg, event, handled, result;
 
-      if (options.verbose && !isDebug) {
-        console.log('CONSOLE:', messageToString(res));
+      if (!isDebug) {
+        msg = messageToString(res);
+        print('CONSOLE:', msg);
+        result = {
+          type: res.type,
+          text: msg
+        };
+        handled = fireEvent(`console.${res.type}`, result , self);
+        if (!handled) fireEvent('console', result, self);
+        return;
       }
 
-      if (!isDebug) return;
-
       // handle console.debug({event, data}) call from target
-      var result = {};
+      result = {};
       var arg = res.args[0];
 
       if (arg.type === 'object' && !Array.isArray(arg.value) && arg.value !== null) {
         // NOTE: preview is limited to 100 characters!!!
-        result = parsePreview(arg.preview);
+        result = parsePreview(arg);
 
       } else if (arg.type === 'string') { // data passed via __chromate is JSON.stringify'd
         result = tryJsonParse(arg.value);
-
-      } else if (arg.subtype === 'array') {
-        result = unmirror(arg);
 
       } else {
         result = arg.value;
       }
 
-      var event = (result || {}).event;
+      event = (result || {}).event;
       if (!event) event = 'data';
 
-      // console.log(11111, event, typeof result, result, arg);
-
       // event handled?
-      var handled = fireEvent(event, result, self);
+      handled = fireEvent(event, result, self);
 
       // special handling for 'done'
       switch (event) {
+        case 'abort':
+          if (!handled) {
+            print('-> Aborting.  code:', result.code);
+            process.exit('code' in result ? result.code : -1);
+          }
+          break;
         case 'done':
-          options.verbose && console.log('-> done', result)
+          print('DONE', result)
           self.result = result;
 
           if (!options.waitForDone) break;
@@ -172,26 +182,30 @@ function newTab(client, targetUrl, options) {
           break;
 
         default:
-          !handled && options.verbose && console.log('CONSOLE: (UNHANDLED MESSAGE)', result);
+          !handled && print('CONSOLE: (UNHANDLED MESSAGE)', result);
       }
     });
 
-    if (options.verbose) client.Runtime.exceptionThrown(res => {
-      console.log('EXCEPTION', res)
+    client.Runtime.exceptionThrown(res => {
+      print('EXCEPTION', res);
+      fireEvent('exception', res, self);
     });
 
-    // fire ready event -- allowing caller to override any of the above
-    fireEvent('ready', self);
-
-    Promise.all([
+    // list of client promises to await
+    self.clientPromises = [
       client.Network.enable(),
       client.Page.enable(),
       client.Log.enable(),
       client.Runtime.enable(),
       // client.Debugger.enable()
-    ])
+    ];
+
+    // fire ready event -- allowing caller to override any of the above
+    fireEvent('ready', self);
+
+    Promise.all(self.clientPromises)
     .then(() => {
-      options.verbose && console.log('-> Navigate to', targetUrl)
+      print('-> Navigate to', targetUrl)
       return client.Page.navigate({url: targetUrl});
     })
     .then(frameId => {
@@ -215,13 +229,18 @@ function tryJsonParse(data) {
 
 /**
  * parse a CDP 'preview' object consisting of {name, type, value}
- * @param prev
- * @returns {object}
+ * @param arg
+ * @returns {object|array}
  * @ignore
  */
-function parsePreview(prev) {
+function parsePreview(arg) {
   var out = {};
-  prev.properties.forEach(o => {
+
+  if (arg.subtype === 'array') {
+    return unmirror(arg);
+  }
+
+  arg.preview.properties.forEach(o => {
     // console.log(66, o.name, o.value)
     if (o.name === 'data') {
       out[o.name] = tryJsonParse(o.value);
@@ -232,9 +251,13 @@ function parsePreview(prev) {
   return out;
 }
 
+// NOTE preview is limited to 100 chars!
 function messageToString(res) {
   return res.args.map((arg) => {
-    return arg.value || arg.preview || '';
+    return arg.value ||
+      (arg.subtype === 'array' || arg.className === 'Object'
+        ? JSON.stringify(parsePreview(arg))
+        : arg.description) || arg.preview || '';
   }).join(' ');
 }
 
@@ -247,6 +270,64 @@ function screenCapture(client, options) {
     }
   );
 }
+
+/**
+ * Tab client is ready.  Handlers get <code>(tab)</code>.  Note: this
+ * overrides the CDP 'ready' event.
+ * @event 'ready'
+ * @memberOf Tab
+ */
+
+/**
+ * Page loaded.  Handlers get <code>(data, tab)</code>.
+ * @event 'load'
+ * @memberOf Tab
+ */
+
+/**
+ * Events fired by CDP.  See [CDP events](https://github.com/cyrus-and/chrome-remote-interface#class-cdp).
+ * @event 'event'
+ * @memberOf Tab
+ */
+
+/**
+ * console.&lt;type&gt; was called, where &lt;type&gt; is one of <code>log|info|warn|error|debug</code>.
+ * Handlers get <code>({type, text}, tab)</code>
+ * @event 'console.&lt;type&gt;'
+ * @memberOf Tab
+ */
+
+/**
+ * console.&lt;type&gt; was called and no type-specific handler was found.
+ * @event 'console'
+ * @memberOf Tab
+ */
+
+/**
+ * An uncaught exception was thrown.  Handlers get <code>(exception, tab)</code>.
+ * @event 'exception'
+ * @memberOf Tab
+ */
+
+/**
+ * Target is requesting a process abort. If no handler is found, a
+ *   process.exit(code) is issued.  Handlers get <code>(message, tab)</code>.
+ * @event 'abort'
+ * @memberOf Tab
+ */
+
+/**
+ * Unhandled calls to __chromate() or console.debug().  Handlers get <code>(message, tab)</code>.
+ * @event 'data'
+ * @memberOf Tab
+ */
+
+/**
+ * 'done' (and other custom events) as fired by the target page.
+ * Handlers get <code>(message, tab)</code>.
+ * @event 'done'
+ * @memberOf Tab
+ */
 
 
 class Tab extends EventEmitter {
@@ -264,21 +345,18 @@ class Tab extends EventEmitter {
   /**
    * Open a new tab at url.
    *
-   * @emits 'ready' - tab client is ready.  Handlers get (this).
-   * @emits 'load' - page loaded.  Handlers get (data, this).
-   * @emits 'done' and other custom events as fired by the target page. Handlers get (data, this).
-   *
    * See also: events fired by <a href="https://github.com/cyrus-and/chrome-remote-interface#class-cdp">CDP</a>.
    *
+   * Note that tab.client is the <a href="https://github.com/cyrus-and/chrome-remote-interface#cdpnewoptions-callback">CDP client</a> object.
+   *
    * Target may fire any number of custom events via
-   * <tt>console.debug({event, data})</tt>.
+   * <code>console.debug({event, data})</code>.
    *
    * @param targetUrl="about:blank" {string} url to load in tab
-   * @returns {Promise.<Tab>} Resolved as soon as the page loads.  If options.waitForDone is true,
+   * @returns {Promise.<Tab>} Resolved as soon as the page loads.  If <code>options.waitForDone</code> is true,
    *   waits for 'done' event from the target page before resolving.
-   *   The data from the 'done' event is available as this.result.
-   *
-   * Note that this.client is the <a href="https://github.com/cyrus-and/chrome-remote-interface#cdpnewoptions-callback">CDP client</a> object.
+   *   The data from the 'done' event is available as tab.result.
+   * @emits see {@link Tab#events}
    *
    * @memberOf Tab
    */
@@ -330,11 +408,11 @@ class Tab extends EventEmitter {
   }
 
   /**
-   * Execute a named function in target and get the result.
+   * Execute a (named) function in target and get the result.
    *
    * The function should return simple text values or use JSON.stringify.
    *
-   * Pass options.awaitPromise if the function returns a Promise.
+   * Pass <code>options.awaitPromise</code> if the function returns a Promise.
    *
    * @param func {string|function} function name in target, or function, to execute in target.
    * @param args {...any} additional arguments to pass to function
@@ -342,11 +420,16 @@ class Tab extends EventEmitter {
    * @returns {Promise.<result>} Promise gets return value of function.  Objects
    *   (including Arrays) should be JSON.stringify'd.
    * @example
-   *
    *   tab.execute('getResults').then(result => console.log )  // {a:1}
    *
    *   // in target:
    *   function getResult() { return JSON.stringify({a:1}); }
+   *
+   * @example
+   *   tab.execute(function(){ return document.title })
+   *    .then(result => console.log) // -> foo bar
+   *
+   *   // in target html:  <title>foo bar</title>
    */
   execute(func /*, args, ...*/) {
     var args = Array.from(arguments);
