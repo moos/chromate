@@ -14,11 +14,12 @@ let {Chrome, Tab} = require('chromate');
 
 // start a headless Chrome process
 Chrome.start().then(chrome => {
-  let tab = new Tab();
-  tab.open(targetUrl, {
+  let tab = new Tab({
     verbose: true,
     failonerror: false
-  })
+  });
+  
+  tab.open(targetUrl)
   .then(() => tab.evaluate('testResults'))
   .then(res => console.log) // results...
   .then(() => tab.close())
@@ -58,7 +59,7 @@ console.debug({
 new Tab()
   .on('done', res => console.log); // {event: 'done', data: foo:1}}
 ```
-A special function is injected `__chromate(message)` in target 
+A special function `__chromate(message)` is injected in target 
 page to facilitate this, so that the above can be replaced by:
 ```js
 // in target (useful for any length message)
@@ -97,12 +98,19 @@ new Tab()
   .then(tab => {
     tab.execute('getResult').then(res => console.log);
   })
+  
+// in target
+function getResult() {
+  return JSON.stringify(result);
+}
 ```
 `tab.execute()` takes additional parameters to pass as arguments to the function.
+If the function is expected to return a Promise, pass a `{awaitPromise: true}` as the
+last argument.
 
 ## API
 
-See [Api docs](./api.md);
+See [Api docs](./api.md).
 
 
 ## Simple CLI
@@ -110,7 +118,7 @@ Usage:
 ```shell
 $ chromate
 Usage: chromate start [<chrome flags>] | list | kill <id> ... | killall | version | open <url> | 
-    list-tabs | close <tabId> | close-tabs  [--canary | --verbose]
+    list-tabs | close <tabId> | close-tabs  [--canary | --verbose | -v]
 ```
 
 Chrome process control:
@@ -181,7 +189,7 @@ npm test
 
 ## Change log
 
-- v0.3.1 added events 'abort', 'exception', and 'console.*'
+- v0.3.1 added events 'abort', 'exception', and 'console.*'.  Export chromate.version.
 - v0.3.0 tab.open(url) takes url rather than constructor.  tab.execute can take a local function.  Use ps-moos with fix for spaces in path.
 - v0.2.0 Added expression and function evaluation and __chromate global for general message passing.  Events
  now get complete message, not just the data part. (May 2017)
