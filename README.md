@@ -140,6 +140,11 @@ $ chromate killall
 ```
 For list of Chrome Headless flags, [see here](https://cs.chromium.org/chromium/src/headless/app/headless_shell_switches.cc).
 
+To use a custom Chrome path and/or port, use:
+```shell
+$ CHROME_BIN=/path/to/chrome CHROME_PORT=9224 chromate start
+```
+
 Chrome tab control:
 ```shell
 $ chromate open https://github.com
