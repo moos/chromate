@@ -194,12 +194,11 @@ npm test
 
 ## Change log
 
-- v0.3.2 fixed internal print() method
-- v0.3.1 added events 'abort', 'exception', and 'console.*'.  Export chromate.version.
-- v0.3.0 tab.open(url) takes url rather than constructor.  tab.execute can take a local function.  Use ps-moos with fix for spaces in path.
-- v0.2.0 Added expression and function evaluation and __chromate global for general message passing.  Events
- now get complete message, not just the data part. (May 2017)
-- v0.1.x Initial version (May 2017)
+- v0.3.2 - fixed internal print() method
+- v0.3.1 - added events 'abort', 'exception', and 'console.*'.  Export chromate.version.
+- v0.3.0 - tab.open(url) takes url rather than constructor.  tab.execute can take a local function.  Use ps-moos with fix for spaces in path.
+- v0.2.0 - Added expression and function evaluation and __chromate global for general message passing.  Events now get complete message, not just the data part. (May 2017)
+- v0.1.x - Initial version (May 2017)
 
 ## License
 MIT
