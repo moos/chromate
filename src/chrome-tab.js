@@ -65,8 +65,8 @@ function newTab(client, targetUrl, options) {
     fulfilled = true;
     fn(result);
   };
-  var print = function (message) {
-    options.verbose && console.log(message);
+  var print = function () {
+    options.verbose && console.log.apply(console, arguments);
   };
 
   options = Object.assign({}, Tab.settings, options || {});

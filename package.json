@@ -1,13 +1,14 @@
 {
   "name": "chromate",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "A mate for your Headless Chrome, mate.",
   "main": "index.js",
   "bin": "bin/cli.js",
   "scripts": {
     "test": "mocha test",
     "sample": "node sample/main",
-    "docs": "jsdoc -R README.md src"
+    "docs": "jsdoc -R README.md src",
+    "docs-api": "jsdoc2md src/* > api.md"
   },
   "keywords": [
     "chrome",
@@ -20,7 +21,6 @@
   "author": "Moos",
   "license": "MIT",
   "devDependencies": {
-    "jsdoc": "latest"
   },
   "dependencies": {
     "chrome-remote-interface": "^0.21.0",

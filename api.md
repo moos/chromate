@@ -389,6 +389,16 @@ Get Chrome version info
 | --- | --- | --- |
 | [options] | <code>object</code> | options.port of Chrome process |
 
+**Example**  
+```js
+Chrome.version().then(res => console.log)
+ // ->
+{ Browser: 'HeadlessChrome/60.0.3099.0',
+  'Protocol-Version': '1.2',
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_4) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/60.0.3099.0 Safari/537.36',
+  'V8-Version': '6.0.204',
+  'WebKit-Version': '537.36 (@c3445e93b940e12b2e2275e9a985880a58aaa4b0)' }
+```
 <a name="Chrome.getExecPath"></a>
 
 ### Chrome.getExecPath([options]) ⇒ <code>string</code>
