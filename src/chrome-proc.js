@@ -266,7 +266,7 @@ var Chrome = module.exports = {
    * @memberOf Chrome
    */
   list: function (all) {
-    var ps = require('ps-node');
+    var ps = require('ps-moos');
 
     return new Promise((resolve, reject) => {
       var done = function(err, result) {

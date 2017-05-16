@@ -194,6 +194,7 @@ npm test
 
 ## Change log
 
+- v0.3.3 - fixed 'ps-node' reference
 - v0.3.2 - fixed internal print() method
 - v0.3.1 - added events 'abort', 'exception', and 'console.*'.  Export chromate.version.
 - v0.3.0 - tab.open(url) takes url rather than constructor.  tab.execute can take a local function.  Use ps-moos with fix for spaces in path.
