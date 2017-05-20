@@ -1,6 +1,9 @@
 Automate [Headless Chrome](https://www.chromestatus.com/feature/5678767817097216) -- start/stop 
  Chrome instances, open & close tabs, and _communicate_ with the target page.
 
+## Compatibility 
+- Please use at least version >= 59 of Chrome /Canary (currently that means Chrome Beta).
+- Canary isn't supported on Linux platform.
 
 ## Install
 ```shell
@@ -180,10 +183,6 @@ $ chromate close-tabs
 # npm i -g mocha  (if you don't already have it)
 npm test
 ```
-
-## Issues
-- Please use at least version >= 59 of Chrome (currently that means Chrome Beta).
-- Canary isn't supported on Linux platform.
 
 
 ## Thanks and references
