@@ -110,7 +110,7 @@ last argument.
 
 ## API
 
-See [Api docs](./api.md).
+See [API docs](./api.md).
 
 
 ## Simple CLI
@@ -194,6 +194,7 @@ npm test
 
 ## Change log
 
+- v0.3.4 - Added Chrome.settings.userDataDir.  By default a temporary user data dir is used and cleaned up.  
 - v0.3.3 - fixed 'ps-node' reference
 - v0.3.2 - fixed internal print() method
 - v0.3.1 - added events 'abort', 'exception', and 'console.*'.  Export chromate.version.

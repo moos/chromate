@@ -22,7 +22,8 @@ describe('chrome-proc', function () {
       execPath,
       '--remote-debugging-port=9224',
       '--headless',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--user-data-dir=' // [4]
       ].concat(Chrome.flags);
 
     Chrome.start({
@@ -30,6 +31,10 @@ describe('chrome-proc', function () {
     }).then(chrome => {
       assert.equal(typeof chrome.pid, 'number');
       assert.equal(chrome.spawnfile, execPath);
+
+      // custom attribute
+      assert.equal(typeof chrome.userDataDir, 'string');
+      expected[4] += chrome.userDataDir;
       assert.deepEqual(chrome.spawnargs, expected);
       done();
     });

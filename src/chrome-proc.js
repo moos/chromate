@@ -5,8 +5,6 @@
  * @licence MIT
  */
 
-// TODO support --user-data-dir
-
 
 /**
  * @constant {string} CHROME_BIN (Environment variable) location
@@ -46,6 +44,9 @@ var net = require('net');
 var CDP = require('chrome-remote-interface');
 var KILL_SIG = 'SIGTERM';
 var fs = require('fs');
+var os = require('os');
+var path = require('path');
+var tmpPathPrefix = os.tmpdir() + path.sep + 'chrome-';
 
 
 function getExecPath(canary) {
@@ -63,6 +64,28 @@ function delay(msecs) {
   return new Promise((resolve) => setTimeout(resolve, msecs));
 }
 
+function getUserDataDir() {
+  return fs.mkdtempSync(tmpPathPrefix);
+}
+
+function getPidTmpFile(pid) {
+  return tmpPathPrefix + pid;
+}
+
+var rimraf;
+function rmdir(dir) {
+  if (!rimraf) rimraf = require('rimraf');
+  rimraf.sync(dir, {glob: false});
+}
+
+function cleanUp(pid, options) {
+  options = options || {};
+  var pidFile = getPidTmpFile(pid);
+  if (!fs.existsSync(pidFile)) return;
+  options.verbose && console.log(`Removing tmp dir for pid ${pid}`);
+  rmdir(fs.readFileSync(pidFile, 'utf8'));
+  fs.unlinkSync(pidFile);
+}
 
 function checkReady(options) {
   var proc,
@@ -106,6 +129,11 @@ var Chrome = module.exports = {
    * @prop headless=true {boolean} start Chrome in headless mode (note: non-headless mode not tested!)
    * @prop disableGpu=true {boolean} passed --disable-gpu to Chrome
    * @prop execPath {string} override Chrome exec path, or set env variable CHROME_BIN
+   * @prop userDataDir {string|false} path to (possibly existing) dir to use for user data dir.  If none given,
+   *    a temporary user data dir is used and cleaned up after exit.  Set to === false to use
+   *    default user in your system.  If path is given, the directory isn't removed after exit.
+   *    The used value can be obtained as the <code>userDataDir</code> property of the resolved
+   *    child process of start().
    * @prop chromeFlags {string[]} array of additional flags to pass to Chrome, e.g. ['--foo']
    * @prop canary=false {boolean} use Chrome Canary (must be installed on your system)
    * @prop retry=3 {number} no. of times to retry to see if Chrome is ready
@@ -120,6 +148,7 @@ var Chrome = module.exports = {
     headless     : true,
     disableGpu   : true,
     execPath     : getExecPath(),
+    userDataDir  : '',
     chromeFlags  : [],
     canary       : false,
     retry        : 3,
@@ -152,28 +181,40 @@ var Chrome = module.exports = {
     // Disable installation of default apps on first run
     '--disable-default-apps',
     // Skip first run wizards
-    '--no-first-run'
+    '--no-first-run',
 
-    // Place Chrome profile in a custom location we'll rm -rf later
-    //`--user-data-dir=TBD`
+    '--disable-background-timer-throttling',
+    // see https://github.com/karma-runner/karma-chrome-launcher/issues/123
+    '--disable-renderer-backgrounding',
+    '--disable-device-discovery-notifications'
   ],
 
   /**
-   * Start a Chrome process and wait until it's ready
+   * Start a Chrome process and wait until it's ready.
    *
    * @param [options] {object} see settings
-   * @returns {Promise.<external:ChildProcess>}
+   * @returns {Promise.<external:ChildProcess>}  In addition to the usual child process properties,
+   *    <code>child.userDataDir</code> contains the temporary user data dir used (unless one was specified).
    * @memberOf Chrome
    */
   start: function (options) {
+    var tmpDir;
+    var _cleanUp = function () {
+      tmpDir && rmdir(tmpDir);
+    };
     options = Object.assign({}, Chrome.settings, options);
 
     var args = [];
     if (options.debug) args.push(`--remote-debugging-port=${options.port}`);
     if (options.headless) args.push('--headless');
     if (options.disableGpu) args.push('--disable-gpu');
-
     if (options.canary) options.execPath = getExecPath(true);
+
+    if (options.userDataDir !== false && (
+      !options.chromeFlags || !/--user-data-dir/.test(options.chromeFlags.join()))) {
+      tmpDir = options.userDataDir || getUserDataDir();
+      args.push('--user-data-dir=' + tmpDir);
+    }
 
     if (options.chromeFlags) {
       args = args.concat(options.chromeFlags, Chrome.flags);
@@ -187,6 +228,7 @@ var Chrome = module.exports = {
       ['error', 'disconnect', 'close'].forEach(ev => {
         proc.on(ev, res => {
           options.verbose && console.log('Chrome says:', ev, res || '');
+          _cleanUp(proc.pid);
           delay(50).then(() => reject(res));
         });
       });
@@ -195,9 +237,18 @@ var Chrome = module.exports = {
       delay(options.retryInterval)
         .then(() => Chrome.ready(options))
         .then(() => {
+          // save tmpDir for out-of-process cleanup
+          if (tmpDir) {
+            fs.writeFileSync(getPidTmpFile(proc.pid), tmpDir, 'utf-8');
+            proc.userDataDir = tmpDir;
+          }
+
           resolve(proc);
         })
-        .catch(reject);
+        .catch(err => {
+          _cleanUp(proc.pid);
+          reject(err);
+        });
     });
   },
 
@@ -234,10 +285,18 @@ var Chrome = module.exports = {
    */
   kill: function (job) {
     if (!job) return;
-    if (job.kill) return job.kill(KILL_SIG);
+    if (job.kill) {
+      job.kill(KILL_SIG);
+      cleanUp(job.pid);
+      return;
+    }
 
-    [].concat(job).forEach(function (id) {
-      process.kill(id, KILL_SIG);
+    [].concat(job).forEach(function (pid) {
+      try {
+        process.kill(pid, KILL_SIG);
+      } catch (e) {
+      }
+      cleanUp(pid);
     });
   },
 
@@ -250,10 +309,7 @@ var Chrome = module.exports = {
   killall: function () {
     return Chrome.list(true)
       .then(list => {
-        list.forEach(function (ps) {
-          process.kill(ps.pid, KILL_SIG);
-        });
-
+        Chrome.kill(list.map(ps => ps.pid));
         return list.length;
       });
   },

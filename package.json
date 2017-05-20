@@ -1,6 +1,6 @@
 {
   "name": "chromate",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "A mate for your Headless Chrome, mate.",
   "main": "index.js",
   "bin": "bin/cli.js",
@@ -20,11 +20,11 @@
   },
   "author": "Moos",
   "license": "MIT",
-  "devDependencies": {
-  },
+  "devDependencies": {},
   "dependencies": {
     "chrome-remote-interface": "^0.21.0",
     "chrome-unmirror": "^0.1.0",
-    "ps-moos": "~0.1.6-moos"
+    "ps-moos": "~0.1.6-moos",
+    "rimraf": "^2.6.1"
   }
 }

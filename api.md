@@ -311,6 +311,7 @@ Default settings. May be overridden by passing options.
 | headless | <code>boolean</code> | <code>true</code> | start Chrome in headless mode (note: non-headless mode not tested!) |
 | disableGpu | <code>boolean</code> | <code>true</code> | passed --disable-gpu to Chrome |
 | execPath | <code>string</code> |  | override Chrome exec path, or set env variable CHROME_BIN |
+| userDataDir | <code>string</code> \| <code>false</code> |  | path to (possibly existing) dir to use for user data dir.  If none given,    a temporary user data dir is used and cleaned up after exit.  Set to === false to use    default user in your system.  If path is given, the directory isn't removed after exit.    The used value can be obtained as the <code>userDataDir</code> property of the resolved    child process of start(). |
 | chromeFlags | <code>Array.&lt;string&gt;</code> |  | array of additional flags to pass to Chrome, e.g. ['--foo'] |
 | canary | <code>boolean</code> | <code>false</code> | use Chrome Canary (must be installed on your system) |
 | retry | <code>number</code> | <code>3</code> | no. of times to retry to see if Chrome is ready |
@@ -328,9 +329,11 @@ Source: https://github.com/GoogleChrome/lighthouse/blob/master/lighthouse-cli/ch
 <a name="Chrome.start"></a>
 
 ### Chrome.start([options]) ⇒ [<code>Promise.&lt;ChildProcess&gt;</code>](https://nodejs.org/api/child_process.html#child_process_class_childprocess)
-Start a Chrome process and wait until it's ready
+Start a Chrome process and wait until it's ready.
 
 **Kind**: static method of [<code>Chrome</code>](#Chrome)  
+**Returns**: [<code>Promise.&lt;ChildProcess&gt;</code>](https://nodejs.org/api/child_process.html#child_process_class_childprocess) - In addition to the usual child process properties,
+   <code>child.userDataDir</code> contains the temporary user data dir used (unless one was specified).  
 
 | Param | Type | Description |
 | --- | --- | --- |
