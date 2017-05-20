@@ -1,8 +1,8 @@
 Automate [Headless Chrome](https://www.chromestatus.com/feature/5678767817097216) -- start/stop 
  Chrome instances, open & close tabs, and _communicate_ with the target page.
 
-## Compatibility 
-- Please use at least version >= 59 of Chrome /Canary (currently that means Chrome Beta).
+### Compatibility 
+- You must use version >= 59 of Chrome (currently that means [Chrome Beta](https://www.google.com/chrome/browser/beta.html)) or use [Chrome Canary](https://www.google.com/chrome/browser/canary.html).
 - Canary isn't supported on Linux platform.
 
 ## Install
