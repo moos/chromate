@@ -27,7 +27,7 @@ function done(res) {
 
 function usage() {
   done('Usage: ' + me +
-    ' start [<chrome flags>] | list | kill <id> ... | killall | version | open <url> | list-tabs | close <tabId> | close-tabs  [--canary | --verbose | -v]');
+    ' start [<chrome flags>] | list | kill <pid> ... | killall | version | open <url> | list-tabs | close <tabId> | close-tabs  [--canary | --verbose | -v]');
 }
 
 if (version) done(chromate.version);

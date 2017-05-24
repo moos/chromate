@@ -50,7 +50,7 @@ fire any number of custom events.
 ### Custom events
 A target page may communicate back to the controlling process by calling `console.debug(message)`, 
 where `message`  is `{event, data}`.   This is useful for running automated tests, such as for
-replacing [PhantomJS](http://phantomjs.org/).
+replacing [PhantomJS](http://phantomjs.org/).  See [phantom-menace](https://github.com/moos/phantom-menace) for  example.
 ```js
 // useful for short messages (< 100 chars)
 console.debug({
@@ -120,35 +120,58 @@ See [API docs](./api.md).
 Usage:
 ```shell
 $ chromate
-Usage: chromate start [<chrome flags>] | list | kill <id> ... | killall | version | open <url> | 
+Usage: chromate start [<chrome flags>] | list | kill <pid> ... | killall | version | open <url> | 
     list-tabs | close <tabId> | close-tabs  [--canary | --verbose | -v]
 ```
 
-Chrome process control:
+### Chrome process control
 ```shell
-$ chromate start --window-size=800x600
-87335: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --remote-debugging-port=9222 --headless --disable-gpu --window-size=800x600
+$ chromate start --window-size=800x600 --canary
+42706: /Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary
+  --remote-debugging-port=9222 --headless --disable-gpu
+  --user-data-dir=/var/folders/jl/zr54cdxs08l1djw8s4ws2t540000gn/T/chrome-PdvzfF 
+  --window-size=800x600 --canary --disable-translate --disable-extensions
+  --disable-background-networking --safebrowsing-disable-auto-update --disable-sync
+  --metrics-recording-only --disable-default-apps --no-first-run 
+  --disable-background-timer-throttling --disable-renderer-backgrounding
+  --disable-device-discovery-notifications
 
 $ chromate list
-[ { pid: '87335',
-    command: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+[ { pid: '42706',
+    command: '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
     arguments:
      [ '--remote-debugging-port=9222',
        '--headless',
        '--disable-gpu',
-       '--window-size=800x600' ],
+       '--user-data-dir=/var/folders/jl/zr54cdxs08l1djw8s4ws2t540000gn/T/chrome-PdvzfF',
+       '--window-size=800x600',
+       '--canary',
+       '--disable-translate',
+       '--disable-extensions',
+       '--disable-background-networking',
+       '--safebrowsing-disable-auto-update',
+       '--disable-sync',
+       '--metrics-recording-only',
+       '--disable-default-apps',
+       '--no-first-run',
+       '--disable-background-timer-throttling',
+       '--disable-renderer-backgrounding',
+       '--disable-device-discovery-notifications' ],
     ppid: '1' } ]
-
+    
 $ chromate killall 
+2
 ```
-For list of Chrome Headless flags, [see here](https://cs.chromium.org/chromium/src/headless/app/headless_shell_switches.cc).
+`killall` returns the number of processes (including sub-processes) killed.
+
+For list of Chrome _Headless_ flags, [see here](https://cs.chromium.org/chromium/src/headless/app/headless_shell_switches.cc). Of course, [any Chrome flag](http://peter.sh/experiments/chromium-command-line-switches/) can be specified.
 
 To use a custom Chrome path and/or port, use:
 ```shell
-$ CHROME_BIN=/path/to/chrome CHROME_PORT=9224 chromate start
+$ CHROME_BIN=/path/to/chrome CHROME_PORT=9226 chromate start
 ```
 
-Chrome tab control:
+### Chrome tab control
 ```shell
 $ chromate open https://github.com
 { description: '',
@@ -174,6 +197,7 @@ $ chromate list-tabs
     type: 'page',
     url: 'about:blank',
     webSocketDebuggerUrl: 'ws://localhost:9222/devtools/page/e4c16358-7670-4deb-8b2e-29f802e599a3' } ]
+
 $ chromate close-tabs
 2
 ```
@@ -193,6 +217,7 @@ npm test
 
 ## Change log
 
+- v0.3.5 - Readme update.
 - v0.3.4 - Added Chrome.settings.userDataDir.  By default a temporary user data dir is used and cleaned up.  
 - v0.3.3 - fixed 'ps-node' reference
 - v0.3.2 - fixed internal print() method
